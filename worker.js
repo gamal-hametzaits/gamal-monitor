@@ -23,11 +23,30 @@ const ADSB_POINTS = [  // lat, lon, radius(nm) <= 250
 const MIL_TYPES = new Set(["K35R","K35E","KC35","K46A","C17","C5M","C30J","C130","E3TF","E3CF","E6","E8","RC35","R135","P8","P3","F15","F16","F18","F22","F35","EUFI","RFAL","MIR2","MRTT","A330","GLEX","GLF5","GLF6","E550","B703","B762","B744","A400","V22","H60","UH60","CH47","H47","Q4","RQ4","MQ4","MQ9","Q9","Q1","HERON","HER1","EITM"]);
 const MIL_CALL = /^(RCH|CNV|DUKE|LAGR|TOPCT|NATO|QID|IAM|BAF|GAF|HAF|TURK|ASENA|IAF|ISF|RSF|EVAC|MEDEX|SAM|SPAR|PAT|JAKE|HOMER|FORTE|REBEL|VIPER|DRAGN)/i;
 
-async function fetchAdsbOpenSky() {
+async function openskyToken(env, store) {
+  const now = Date.now() / 1000;
+  if (store.oadsb && store.oadsb.tok && store.oadsb.exp > now + 60) return store.oadsb.tok;
+  if (!env.OPENSKY_CLIENT_ID || !env.OPENSKY_CLIENT_SECRET) return null;
+  const r = await fetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials&client_id=" + encodeURIComponent(env.OPENSKY_CLIENT_ID) + "&client_secret=" + encodeURIComponent(env.OPENSKY_CLIENT_SECRET),
+  });
+  ADSB_DEBUG.push("opensky:tok:" + r.status);
+  if (!r.ok) return null;
+  const d = await r.json();
+  store.oadsb = { tok: d.access_token, exp: now + (d.expires_in || 1800) };
+  return d.access_token;
+}
+
+async function fetchAdsbOpenSky(env, store) {
   try {
     const u = `https://opensky-network.org/api/states/all?lamin=${BBOX.minLat}&lomin=${BBOX.minLon}&lamax=${BBOX.maxLat}&lomax=${BBOX.maxLon}`;
-    const r = await fetch(u, { headers: { "User-Agent": "gamal-monitor/1.0" } });
-    ADSB_DEBUG.push("opensky:" + r.status);
+    const tok = await openskyToken(env, store);
+    const headers = { "User-Agent": "gamal-monitor/1.0" };
+    if (tok) headers["Authorization"] = "Bearer " + tok;
+    const r = await fetch(u, { headers });
+    ADSB_DEBUG.push("opensky:" + r.status + (tok ? ":auth" : ":anon"));
     if (!r.ok) return null;
     const d = await r.json();
     const out = [];
@@ -40,7 +59,7 @@ async function fetchAdsbOpenSky() {
         code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
         place: `${cs || st[0]} · ${Math.round((st[7] || 0) * 3.281)} ft · ${st[2] || ""}`,
         ctry: "", lat, lon, prec: "city", geo: "adsb",
-        url: "https://globe.adsb.lol/?icao=" + st[0], cat: "military_air", src: "adsb",
+        url: "https://opensky-network.org/network/explorer?icao24=" + st[0], cat: "military_air", src: "adsb",
       });
       if (out.length >= 120) break;
     }
@@ -48,8 +67,8 @@ async function fetchAdsbOpenSky() {
   } catch (e) { ADSB_DEBUG.push("opensky:err:" + String(e && e.message || e).slice(0, 50)); return null; }
 }
 
-async function fetchAdsb() {
-  const os = await fetchAdsbOpenSky();
+async function fetchAdsb(env, store) {
+  const os = await fetchAdsbOpenSky(env, store);
   if (os) return os;
   const out = [];
   const seen = new Set();
@@ -117,9 +136,23 @@ const GAZ = [
 ["Amman|עמאן",31.95,35.93],["Zarqa|זרקא",32.07,36.09],["Irbid",32.56,35.85],["Aqaba|עקבה",29.53,35.01],
 ["Cairo|קהיר",30.04,31.24],["Alexandria|אלכסנדריה",31.20,29.92],["Giza",30.01,31.21],["Suez|סואץ",29.97,32.55],["Port Said|פורט סעיד",31.26,32.30],["Arish|אל-עריש",31.13,33.80],["Rafah, Egypt",31.24,34.20],
 ["Ankara|אנקרה",39.93,32.86],["Istanbul|איסטנבול",41.01,28.98],["Izmir|איזמיר",38.42,27.14],["Gaziantep",37.07,37.38],["Diyarbakir",37.91,40.24],["Hatay|Antakya",36.20,36.16],
+["West Bank|Judea|Samaria|יהודה ושומרון|איו\"ש|הגדה המערבית",31.90,35.26],
+["غزة",31.50,34.47],["رفح",31.29,34.24],["خان يونس|خانيونس",31.35,34.30],["جباليا",31.53,34.48],["النصيرات",31.45,34.39],
+["بيروت",33.89,35.50],["صيدا",33.56,35.37],["صور",33.27,35.20],["النبطية",33.38,35.48],["بعلبك",34.00,36.21],["طرابلس",34.43,35.85],
+["دمشق",33.51,36.29],["حلب",36.20,37.13],["حمص",34.73,36.71],["حماة",35.13,36.75],["اللاذقية",35.51,35.78],["طرطوس",34.89,35.89],["دير الزور",35.33,40.14],["الرقة",35.95,39.01],["إدلب",35.93,36.63],["درعا",32.62,36.10],["القامشلي",37.05,41.22],["الحسكة",36.51,40.75],
+["بغداد",33.31,44.36],["الموصل",36.34,43.13],["أربيل",36.19,44.01],["البصرة",30.51,47.78],["النجف",32.03,44.35],["كربلاء",32.60,44.02],["كركوك",35.47,44.39],["الفلوجة",33.35,43.79],
+["صنعاء",15.35,44.21],["الحديدة",14.80,42.95],["عدن",12.79,45.04],["تعز",13.58,44.02],["مأرب",15.47,45.33],["صعدة",16.94,43.76],
+["الرياض",24.71,46.68],["جدة",21.49,39.19],["أبها",18.30,42.73],["جازان",16.89,42.55],["نجران",17.49,44.13],["خميس مشيط",18.30,42.73],
+["طهران",35.69,51.39],["أصفهان",32.65,51.67],["شيراز",29.59,52.58],["تبريز",38.08,46.29],["قم",34.64,50.88],["نتنز",33.72,51.73],["فوردو",34.88,50.99],["بندر عباس",27.18,56.27],["الأحواز",31.32,48.67],["كرمانشاه",34.31,47.06],
+["القدس",31.77,35.21],["تل أبيب",32.08,34.78],["حيفا",32.79,34.99],["بئر السبع",31.25,34.79],["إيلات",29.56,34.95],["أسدود|أشدود",31.80,34.65],["عسقلان",31.67,34.57],["نتانيا",32.33,34.86],["الخليل",31.53,35.10],["نابلس",32.22,35.26],["رام الله",31.90,35.20],["جنين",32.46,35.30],
+["عمّان",31.95,35.93],["الزرقاء",32.07,36.09],["إربد",32.56,35.85],["العقبة",29.53,35.01],
+["القاهرة",30.04,31.24],["الإسكندرية",31.20,29.92],["السويس",29.97,32.55],["العريش",31.13,33.80],["بور سعيد",31.26,32.30],
+["الدوحة",25.29,51.53],["أبو ظبي",24.45,54.38],["دبي",25.20,55.27],["الكويت",29.38,47.99],["المنامة",26.23,50.59],["مسقط",23.59,58.41],
+["أنقرة",39.93,32.86],["إسطنبول|اسطنبول",41.01,28.98],["إزمير",38.42,27.14],["غازي عنتاب",37.07,37.38],["أنطاكيا",36.20,36.16],
+["باب المندب",12.58,43.33],["مضيق هرمز",26.57,56.25],["البحر الأحمر",20.0,38.5],["سيناء",29.5,34.0],["الجولان",33.0,35.75],["ديمونة",31.07,35.03],
 ["Bab al-Mandeb|באב אל-מנדב",12.58,43.33],["Strait of Hormuz|Hormuz|מצרי הורמוז",26.57,56.25],["Red Sea|ים סוף",20.0,38.5],["Sinai|סיני",29.5,34.0],["Golan|גולן",33.0,35.75],["Natanz|נתנז",33.72,51.73],["Fordow|פורדו",34.88,50.99],["Isfahan",32.65,51.67],["Dimona|דימונה",31.07,35.03],["Nevatim|נבטים",31.21,34.88],
 ];
-const GAZ_RE = GAZ.map(([re,lat,lon]) => [new RegExp("\\b(?:" + re + ")", "i"), lat, lon]);
+const GAZ_RE = GAZ.map(([re,lat,lon]) => [new RegExp("(?<![\\p{L}\\p{N}])[\\u05D5\\u05D1\\u05DC\\u05DB\\u05DE\\u05E9\\u05D4\\u0648\\u0641\\u0628\\u0643\\u0644\\u0633]?(?:" + re + ")(?![\\p{L}\\p{N}])", "iu"), lat, lon]);
 function gazLocate(title) {
   for (const [re, lat, lon] of GAZ_RE) if (re.test(title)) return { lat, lon };
   return null;
@@ -417,6 +450,61 @@ function shortPlace(p) {
   return (parts.length > 2 ? parts.slice(0, -1).join(",") : p).trim();
 }
 
+
+const TG_LABEL_SRC = "telegram";
+const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring"];
+const TG_PER_RUN = 2;
+let TG_DEBUG = [];
+
+function tgChannels(store) {
+  if (!Array.isArray(store.tgChannels) || !store.tgChannels.length) store.tgChannels = DEFAULT_TG.slice();
+  return store.tgChannels;
+}
+
+async function fetchTelegram(store) {
+  const chans = tgChannels(store);
+  const out = [];
+  if (!chans.length) return out;
+  store.tgCursor = (store.tgCursor || 0) % chans.length;
+  const picks = [];
+  for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(store.tgCursor + i) % chans.length]);
+  store.tgCursor = (store.tgCursor + TG_PER_RUN) % chans.length;
+  for (const h of picks) {
+    try {
+      const r = await fetch("https://t.me/s/" + h, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" } });
+      if (!r.ok) { TG_DEBUG.push(h + ":" + r.status); continue; }
+      const html = await r.text();
+      TG_DEBUG.push(h + ":len" + html.length + ":dp" + (html.split("data-post=").length - 1) + ":tx" + (html.split("tgme_widget_message_text").length - 1));
+      const blocks = html.match(/<div class="tgme_widget_message\s[^>]*data-post="[^"]*"[\s\S]*?(?=<div class="tgme_widget_message\s[^>]*data-post=|$)/g) || [];
+      let n = 0, txts = 0;
+      for (const b of blocks) {
+        const dp = (b.match(/data-post="([^"]+)"/) || [])[1];
+        const tm = (b.match(/datetime="([^"]+)"/) || [])[1];
+        const txm = b.match(/<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+        if (!dp || !txm) continue;
+        const text = unxml(txm[1].replace(/<br[^>]*>/gi, " ")).replace(/\s+/g, " ").trim().slice(0, 400);
+        if (text.length < 25) continue;
+        txts++;
+        const g = gazLocate(text);
+        if (!g) continue;                                   // iron rule: no resolved location -> drop
+        const ts = Date.parse(tm || "");
+        const postId = dp.split("/").pop();
+        const et = rssEtype(text);
+        const cat = classifyText(text);
+        out.push({
+          id: "tg-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
+          a1: "@" + h, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
+          place: text.slice(0, 120), ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
+          url: "https://t.me/" + dp, cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: TG_LABEL_SRC, etype: et,
+        });
+        n++;
+      }
+      TG_DEBUG.push(h + ":" + blocks.length + "blk:" + txts + "txt:" + n + "loc");
+    } catch (e) { TG_DEBUG.push(h + ":err:" + String(e && e.message || e).slice(0, 40)); }
+  }
+  return out;
+}
+
 async function ingest(env) {
   try { return await ingestInner(env); } catch (e) { return { ok: false, error: String(e && e.message || e), stack: String(e && e.stack || "").slice(0, 300) }; }
 }
@@ -449,10 +537,11 @@ async function ingestInner(env) {
   }
 
   ADSB_DEBUG = [];
-  const adsb = await fetchAdsb();
+  const adsb = await fetchAdsb(env, store);
   const adsbIds = new Set(adsb.map(e => e.id));
   store.events = store.events.filter(e => e.src !== "adsb" || !adsbIds.has(e.id));  // movers get fresh positions
-  const extras = adsb.concat(await fetchUsgs(), await fetchFirms(), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
+  TG_DEBUG = [];
+  const extras = adsb.concat(await fetchUsgs(), await fetchFirms(), await fetchTelegram(store), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
   store.events = store.events.concat(freshExtras);
@@ -484,7 +573,7 @@ async function ingestInner(env) {
   for (const e of store.events) precCount[e.prec] = (precCount[e.prec] || 0) + 1;
   const srcs = {};
   for (const e of store.events) srcs[e.src || "gdelt"] = (srcs[e.src || "gdelt"] || 0) + 1;
-  return { ok: true, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
+  return { ok: true, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, tgDebug: TG_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
 }
 
 function fmtT(stamp) {
@@ -548,7 +637,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/data") {
       const store = await loadStore(env);
-      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS });
+      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store) });
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);
@@ -560,6 +649,26 @@ export default {
     if (url.pathname === "/api/reset") {
       await env.MONITOR_KV.delete("store");
       return json({ ok: true, reset: true });
+    }
+    if (url.pathname === "/api/tg") {
+      const store = await loadStore(env);
+      return json({ channels: tgChannels(store), cursor: store.tgCursor || 0, label: "טלגרם · ערוץ ציבורי · לא מאומת" });
+    }
+    if (url.pathname === "/api/tg/add") {
+      const h = (url.searchParams.get("h") || "").trim().replace(/^@/, "").toLowerCase();
+      if (!/^[a-z0-9_]{3,32}$/.test(h)) return json({ ok: false, reason: "bad handle" }, 400);
+      const store = await loadStore(env);
+      const chans = tgChannels(store);
+      if (!chans.includes(h)) { chans.push(h); await env.MONITOR_KV.put("store", JSON.stringify(store)); }
+      return json({ ok: true, channels: chans });
+    }
+    if (url.pathname === "/api/tg/remove") {
+      const h = (url.searchParams.get("h") || "").trim().replace(/^@/, "").toLowerCase();
+      const store = await loadStore(env);
+      store.tgChannels = tgChannels(store).filter(c => c !== h);
+      store.tgCursor = 0;
+      await env.MONITOR_KV.put("store", JSON.stringify(store));
+      return json({ ok: true, channels: store.tgChannels });
     }
     if (url.pathname === "/api/status") {
       const store = await loadStore(env);

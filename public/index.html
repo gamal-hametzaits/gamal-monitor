@@ -89,6 +89,15 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
     <div id="kinetic" style="max-height:300px;overflow-y:auto;border-bottom:1px solid var(--line)"></div>
     <div class="panel-h">זרם אירועים אחרונים</div>
     <div id="feed"></div>
+    <div class="panel-h">📡 ערוצי טלגרם ציבוריים <span class="tag" id="tgcount"></span></div>
+    <div id="tgadmin" style="padding:8px 10px;font-size:12px">
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input id="tginput" placeholder="שם ערוץ (handle)" style="flex:1;background:#14161c;border:1px solid var(--line);color:#ddd;padding:4px 6px;border-radius:4px;font-size:12px">
+        <button onclick="tgAdd()" style="background:var(--blue);border:0;color:#fff;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">הוסף</button>
+      </div>
+      <div id="tglist"></div>
+      <div style="color:var(--dim);font-size:11px;margin-top:4px">טלגרם · ערוץ ציבורי · לא מאומת — נסרק ללא מפתח, פריט נכנס רק עם מיקום פיזי מזוהה.</div>
+    </div>
   </aside>
   <div id="mapwrap">
     <div id="filters"></div>
@@ -115,7 +124,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 </div></div>
 
 <footer>
-  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה (ממוקמות רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.<br>
+  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.<br>
 מה שאין, בכנות: שכבת התעופה הצבאית (ADS-B) מושבתת — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; תופעל אוטומטית אם תיפתח. תנועת ספינות (AIS) גלובלית חינמית ללא מפתח לא קיימת — לא מוצגת במקום לזייף. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar); שכבת ה-NASA היומית היא רזולוציה נמוכה בלבד ולא טקטית. התראות צבע אדום: אין מקור רשמי נגיש ללא חסימה גיאוגרפית — לא מוצג.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
   מפה: OpenStreetMap · Esri Dark Gray.
@@ -173,7 +182,7 @@ function renderKinetic(){
     return `<div class="ev" style="border-inline-start-color:${col}">
       <div class="head"><span class="chip" style="background:${col}">${e.etype.he}</span><span class="place">${(e.place||'—').split(',').slice(0,2).join(',')}</span><span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</div>
-      <div class="meta"><span style="color:#666">${e.src==='rss'?'כותרת חדשותית':'דיווח GDELT'} · לא אישור רשמי</span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+      <div class="meta"><span style="color:#666">${e.src==='telegram'?'טלגרם · ערוץ ציבורי · לא מאומת':e.src==='rss'?'כותרת חדשותית':'דיווח GDELT'} · לא אישור רשמי</span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -185,7 +194,7 @@ function renderFeed(){
     return `<div class="ev" style="border-inline-start-color:${col}">
       <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${(e.place||e.ctry||'—').split(',').slice(0,2).join(',')}</span>${(e.prec==='country'||e.prec==='unknown')?'<span style="color:var(--dim);font-size:11px" title="מיקום ברמת מדינה בלבד">≈</span>':''}<span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')||''}</div>
-      <div class="meta"><span style="color:#666">${({gdelt:'GDELT',usgs:'USGS',rss:'RSS',firms:'NASA FIRMS'})[e.src]||'GDELT'}</span><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+      <div class="meta"><span style="color:#666">${({gdelt:'GDELT',usgs:'USGS',rss:'RSS',firms:'NASA FIRMS',telegram:'טלגרם · לא מאומת'})[e.src]||'GDELT'}</span><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -245,10 +254,28 @@ function renderTrend(){
   }).join('');
 }
 
+function renderTg(){
+  const el = document.getElementById('tglist');
+  const chans = DATA.tgChannels || [];
+  document.getElementById('tgcount').textContent = chans.length || '';
+  el.innerHTML = chans.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0"><a href="https://t.me/s/${c}" target="_blank" rel="noopener" style="color:var(--blue)">@${c}</a><button onclick="tgRemove('${c}')" style="background:none;border:1px solid var(--line);color:var(--dim);border-radius:4px;cursor:pointer;font-size:11px">הסר</button></div>`).join('') || '<div style="color:var(--dim)">אין ערוצים</div>';
+}
+async function tgAdd(){
+  const v = document.getElementById('tginput').value.trim().replace(/^@/,'');
+  if (!v) return;
+  await fetch('/api/tg/add?h=' + encodeURIComponent(v));
+  document.getElementById('tginput').value = '';
+  await load();
+}
+async function tgRemove(c){
+  await fetch('/api/tg/remove?h=' + encodeURIComponent(c));
+  await load();
+}
+
 async function load(){
   const r = await fetch('/api/data'); DATA = await r.json();
   document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
-  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend();
+  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg();
 }
 
 document.getElementById('reportbtn').onclick = async ()=>{
