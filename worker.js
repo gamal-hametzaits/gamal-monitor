@@ -13,6 +13,7 @@ const WINDOW_KEEP = 96;
 const GEOCODE_PER_RUN = 8;
 
 const CATS = {
+  natural:   { he: "טבע ואסונות",       color: "#B06BFF" },
   conflict:  { he: "עימות צבאי",        color: "#E01F2E" },
   posture:   { he: "איומים / תנועות כוחות", color: "#FF7A1A" },
   protest:   { he: "מחאות",             color: "#F5D90A" },
@@ -22,6 +23,143 @@ const CATS = {
 };
 
 const ECON_CODES = new Set(["164","165","166","172","173","174"]);
+
+const RSS_FEEDS = [
+  { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true },
+  { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false },
+  { url: "https://www.ynet.co.il/Integration/StoryRss2.xml", name: "ynet", me: false },
+];
+const GAZ = [
+["Tehran|טהרן",35.69,51.39],["Isfahan|איספהאן",32.65,51.67],["Shiraz|שיראז",29.59,52.58],["Tabriz|תבריז",38.08,46.29],["Qom",34.64,50.88],["Bandar Abbas",27.18,56.27],["Ahvaz",31.32,48.67],["Kermanshah",34.31,47.06],["Karaj",35.84,50.99],
+["Jerusalem|ירושלים",31.77,35.21],["Tel Aviv|תל אביב",32.08,34.78],["Haifa|חיפה",32.79,34.99],["Beersheba|Be'er Sheva|באר שבע",31.25,34.79],["Eilat|אילת",29.56,34.95],["Netanya|נתניה",32.33,34.86],["Ashdod|אשדוד",31.80,34.65],["Ashkelon|אשקלון",31.67,34.57],
+["Gaza City|Gaza|עזה",31.50,34.47],["Rafah|רפיח",31.29,34.24],["Khan Younis|Khan Yunis|חאן יונס",31.35,34.30],["Deir al-Balah|דיר אל-בלח",31.42,34.35],["Jabalia|ג'באליה",31.53,34.48],["Hebron|חברון",31.53,35.10],["Nablus|שכם",32.22,35.26],["Ramallah|רמאללה",31.90,35.20],["Jenin|ג'נין",32.46,35.30],
+["Beirut|ביירות",33.89,35.50],["Sidon|צידון",33.56,35.37],["Tyre|צור",33.27,35.20],["Tripoli, Leb|Tripoli, Lebanon|טריפולי",34.43,35.85],["Baalbek|בעלבק",34.00,36.21],["Nabatieh|נבטיה",33.38,35.48],
+["Damascus|דמשק",33.51,36.29],["Aleppo|חלב",36.20,37.13],["Homs|חומס",34.73,36.71],["Hama|חאמה",35.13,36.75],["Latakia|לטקיה",35.51,35.78],["Tartus|טרטוס",34.89,35.89],["Deir ez-Zor|Deir Ezzor|דיר א-זור",35.33,40.14],["Raqqa|רקה",35.95,39.01],["Idlib|אידליב",35.93,36.63],["Daraa|דרעא",32.62,36.10],["Qamishli|קמישלי",37.05,41.22],["Hasakah",36.51,40.75],
+["Baghdad|בגדד",33.31,44.36],["Mosul|מוסול",36.34,43.13],["Erbil|ארביל",36.19,44.01],["Basra|בצרה",30.51,47.78],["Najaf|נג'ף",32.03,44.35],["Karbala|כרבלא",32.60,44.02],["Kirkuk|כירכוכ",35.47,44.39],["Sulaymaniyah",35.56,45.43],["Fallujah",33.35,43.79],["Ramadi",33.42,43.30],
+["Sanaa|Sana'a|צנעא",15.35,44.21],["Hodeida|Hodeidah|Hudaydah|חודיידה",14.80,42.95],["Aden|עדן",12.79,45.04],["Taiz|תעז",13.58,44.02],["Marib|מארב",15.47,45.33],["Mukalla",14.54,49.13],["Saada|צעדה",16.94,43.76],
+["Riyadh|ריאד",24.71,46.68],["Jeddah|Jiddah|ג'דה",21.49,39.19],["Mecca|מכה",21.42,39.83],["Medina|אל-מדינה",24.47,39.61],["Dammam",26.43,50.10],["Khamis Mushait|ח'מיס מושייט",18.30,42.73],["Abha|עבהא",18.22,42.51],["Jazan|Jizan|ג'זאן",16.89,42.55],["Najran",17.49,44.13],["Tabuk",28.38,36.57],
+["Doha|דוחה",25.29,51.53],["Abu Dhabi|אבו דאבי",24.45,54.38],["Dubai|דובאי",25.20,55.27],["Sharjah",25.35,55.42],["Kuwait City|כווית",29.38,47.99],["Manama|מנאמה",26.23,50.59],["Muscat|מוסקט",23.59,58.41],
+["Amman|עמאן",31.95,35.93],["Zarqa|זרקא",32.07,36.09],["Irbid",32.56,35.85],["Aqaba|עקבה",29.53,35.01],
+["Cairo|קהיר",30.04,31.24],["Alexandria|אלכסנדריה",31.20,29.92],["Giza",30.01,31.21],["Suez|סואץ",29.97,32.55],["Port Said|פורט סעיד",31.26,32.30],["Arish|אל-עריש",31.13,33.80],["Rafah, Egypt",31.24,34.20],
+["Ankara|אנקרה",39.93,32.86],["Istanbul|איסטנבול",41.01,28.98],["Izmir|איזמיר",38.42,27.14],["Gaziantep",37.07,37.38],["Diyarbakir",37.91,40.24],["Hatay|Antakya",36.20,36.16],
+["Bab al-Mandeb|באב אל-מנדב",12.58,43.33],["Strait of Hormuz|Hormuz|מצרי הורמוז",26.57,56.25],["Red Sea|ים סוף",20.0,38.5],["Sinai|סיני",29.5,34.0],["Golan|גולן",33.0,35.75],["Natanz|נתנז",33.72,51.73],["Fordow|פורדו",34.88,50.99],["Isfahan",32.65,51.67],["Dimona|דימונה",31.07,35.03],["Nevatim|נבטים",31.21,34.88],
+];
+const GAZ_RE = GAZ.map(([re,lat,lon]) => [new RegExp("\\b(?:" + re + ")", "i"), lat, lon]);
+function gazLocate(title) {
+  for (const [re, lat, lon] of GAZ_RE) if (re.test(title)) return { lat, lon };
+  return null;
+}
+
+const ME_TERMS = /israel|gaza|iran|syria|lebanon|yemen|houthi|hezbollah|hamas|saudi|gulf|red sea|netanyahu|ישראל|עזה|איראן|סוריה|לבנון|חיזבאללה|חמאס|חות|תימן|סעוד|נטניהו|חיסול|טיל/i;
+
+function classifyText(t) {
+  t = t || "";
+  if (/quake|earthquake|רעידת/i.test(t)) return "natural";
+  if (/missile|strike|airstrike|attack|kill|bomb|drone|rocket|war|clash|assault|תקיפה|חיסול|טיל|רקט|הרג|לחימה|מתקפ/i.test(t)) return "conflict";
+  if (/threat|deploy|warship|carrier|troops|military|warning|mobiliz|איום|כוחות|צבא|פריסה|תמרון/i.test(t)) return "posture";
+  if (/protest|demonstrat|riot|הפגנ|מחאה/i.test(t)) return "protest";
+  if (/sanction|oil|trade|econom|tariff|embargo|deal worth|סנקצי|נפט|סחר|כלכל/i.test(t)) return "economy";
+  if (/talks|summit|agreement|ceasefire|diplomat|negotiat|minister|visit|פסגה|הסכם|דיפלומט|שר החוץ|ביקור|משא ומתן|שביתת אש/i.test(t)) return "diplomacy";
+  return "other";
+}
+
+function hashId(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return h.toString(36); }
+function toStamp(ms) { return new Date(ms).toISOString().replace(/[-:T]/g, "").slice(0, 14); }
+
+function nearestGaz(lat, lon) {
+  let best = null, bd = 1e9;
+  for (const [, la, lo] of GAZ_RE) {
+    const d = (la - lat) * (la - lat) + (lo - lon) * (lo - lon);
+    if (d < bd) { bd = d; best = [la, lo]; }
+  }
+  return bd <= 0.09 ? best : null; // ~within 30km-ish
+}
+
+async function fetchFirms() {
+  try {
+    const r = await fetch("https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv");
+    if (!r.ok) return [];
+    const txt = await r.text();
+    const lines = txt.split("\n");
+    const cands = [];
+    for (let i = 1; i < lines.length; i++) {
+      const p = lines[i].split(",");
+      if (p.length < 13) continue;
+      const lat = parseFloat(p[0]), lon = parseFloat(p[1]);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      if (lat < BBOX.minLat || lat > BBOX.maxLat || lon < BBOX.minLon || lon > BBOX.maxLon) continue;
+      const frp = parseFloat(p[11]) || 0;
+      if (p[8] !== "h" && frp < 10) continue;          // high-confidence or energetic only
+      cands.push({ lat, lon, frp, date: p[5], time: p[6], dn: p[12] });
+    }
+    cands.sort((a, b) => b.frp - a.frp);
+    return cands.slice(0, 150).map(c => {
+      const near = nearestGaz(c.lat, c.lon);
+      const ms = Date.parse(c.date + "T" + c.time.padStart(4, "0").slice(0, 2) + ":" + c.time.padStart(4, "0").slice(2) + ":00Z");
+      return {
+        id: "frm-" + hashId(c.lat + "," + c.lon + "," + c.date + c.time), d: isFinite(ms) ? toStamp(ms) : nowStamp(),
+        a1: "NASA FIRMS", a2: "", code: "", root: "", quad: "", gold: -Math.min(10, Math.round(c.frp / 10)),
+        ment: 0, arts: 0, tone: 0, frp: Math.round(c.frp * 10) / 10,
+        place: near ? `חדל\"פ תרמי ליד ריכוז (${c.lat.toFixed(2)}, ${c.lon.toFixed(2)})` : `חדל\"פ תרמי בשטח פתוח (${c.lat.toFixed(2)}, ${c.lon.toFixed(2)})`,
+        ctry: "", lat: c.lat, lon: c.lon, prec: "city", geo: "firms",
+        url: "https://firms.modaps.eosdis.nasa.gov/map/", cat: "natural", src: "firms",
+      };
+    });
+  } catch { return []; }
+}
+
+async function fetchUsgs() {
+  try {
+    const r = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson");
+    if (!r.ok) return [];
+    const d = await r.json();
+    const out = [];
+    for (const f of d.features || []) {
+      const p = f.properties || {}, g = f.geometry || {};
+      const lon = g.coordinates && g.coordinates[0], lat = g.coordinates && g.coordinates[1];
+      if (lat == null || lon == null) continue;
+      if (lat < BBOX.minLat || lat > BBOX.maxLat || lon < BBOX.minLon || lon > BBOX.maxLon) continue;
+      out.push({
+        id: "usg-" + f.id, d: toStamp(p.time || Date.now()), a1: "USGS", a2: "",
+        code: "", root: "", quad: "", gold: -Math.round((p.mag || 0) * 2), ment: 0, arts: 0,
+        tone: -(p.mag || 0), place: p.place || "", ctry: "", lat, lon, prec: "city",
+        url: p.url || "", cat: "natural", src: "usgs", mag: p.mag,
+      });
+    }
+    return out;
+  } catch { return []; }
+}
+
+function unxml(t) { return t.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;|&#x27;/g, "'").replace(/&quot;/g, '"').trim(); }
+
+async function fetchRss(feed) {
+  try {
+    const r = await fetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const out = [];
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const it of items.slice(0, 15)) {
+      const t = (it.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || "";
+      const ln = (it.match(/<link[^>]*>([\s\S]*?)<\/link>/) || [])[1] || "";
+      const pd = (it.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/) || [])[1] || "";
+      const title = unxml(t).slice(0, 200);
+      if (!title) continue;
+      const cat = classifyText(title);
+      if (!feed.me && cat === "other" && !ME_TERMS.test(title)) continue;
+      const g = gazLocate(title);
+      if (!g) continue;                                  // no resolved physical location -> drop
+      const ts = Date.parse(pd);
+      out.push({
+        id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
+        a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
+        tone: 0, place: title, ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
+        url: unxml(ln).slice(0, 300), cat: cat === "other" ? "diplomacy" : cat, src: "rss",
+      });
+    }
+    return out;
+  } catch { return []; }
+}
 
 function classify(code) {
   if (!code) return "other";
@@ -61,6 +199,8 @@ function parseBatch(text) {
       if (!c[52]) continue;                        // no place name to geocode -> drop
     }
     const code = c[26] || "";
+    const prec = precFromGeoType(c[51], hasCoords);
+    if (prec === "country") continue;                    // no country-centroid fallbacks
     out.push({
       id: c[0],
       d: c[59],
@@ -75,7 +215,7 @@ function parseBatch(text) {
       ctry,
       lat: hasCoords ? lat : null,
       lon: hasCoords ? lon : null,
-      prec: precFromGeoType(c[51], hasCoords),
+      prec,
       url: (c[60] || "").slice(0, 300),
       cat: classify(code),
     });
@@ -204,9 +344,21 @@ async function ingestInner(env) {
     store.lastfile = url;
   }
 
+  const extras = (await fetchUsgs()).concat(await fetchFirms(), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
+  const seen2 = new Set(store.events.map(e => e.id));
+  const freshExtras = extras.filter(e => !seen2.has(e.id));
+  store.events = store.events.concat(freshExtras);
+  for (const e of freshExtras) {
+    if (e.src === "usgs" && (e.mag || 0) >= 5) {
+      const key = "quake_" + e.id;
+      if (!store.alerts.some(a => a.key === key)) store.alerts.unshift({ key, type: "quake", place: e.place, t: nowStamp(), text: `רעידת אדמה בעוצמה ${e.mag} — ${e.place}` });
+    }
+  }
+
   const geocoded = await geocodePending(store);
 
   const cutoff = nowStampMinus(26 * 3600 * 1000);
+  store.events = store.events.filter(e => e.lat != null && e.prec !== "unknown");
   store.events = store.events.filter(e => e.d >= cutoff).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, MAX_EVENTS);
 
   if (batch.length) {
@@ -220,7 +372,9 @@ async function ingestInner(env) {
   await env.MONITOR_KV.put("store", JSON.stringify(store));
   const precCount = { city: 0, adm1: 0, country: 0, pending: 0, unknown: 0 };
   for (const e of store.events) precCount[e.prec] = (precCount[e.prec] || 0) + 1;
-  return { ok: true, added: batch.length, geocoded, prec: precCount, updated: store.updated };
+  const srcs = {};
+  for (const e of store.events) srcs[e.src || "gdelt"] = (srcs[e.src || "gdelt"] || 0) + 1;
+  return { ok: true, added: batch.length, extras: freshExtras.length, geocoded, prec: precCount, srcs, updated: store.updated };
 }
 
 function fmtT(stamp) {
@@ -260,7 +414,10 @@ function buildReport(store) {
   if (byCat.conflict) lines.push(`${byCat.conflict} אירועי עימות צבאי, ${byCat.posture || 0} איומים או תנועות כוחות, ${byCat.economy || 0} אירועי כלכלה וסחר, ${byCat.diplomacy || 0} אירועים דיפלומטיים.`);
   if (prev3) lines.push(trendPct > 10 ? `מגמת הסלמה: עלייה של ${trendPct}% בהיקף האירועים ב-3 השעות האחרונות לעומת שלוש השעות הקודמות.` : trendPct < -10 ? `מגמת רגיעה: ירידה של ${Math.abs(trendPct)}% בהיקף האירועים ב-3 השעות האחרונות.` : `היקף האירועים יציב יחסית (שינוי של ${trendPct}%) ב-3 השעות האחרונות.`);
   for (const h of hotspots.slice(0, 3)) lines.push(`מוקד חם: ${h.place} — ${h.n} אירועי עימות/הצבת כוח, טון ממוצע ${h.tone}.`);
-  lines.push(`דיוק מיקום: ${byPrec.city || 0} אירועים ברמת עיר, ${byPrec.adm1 || 0} ברמת מחוז, ${coarse} ללא מיקום מדויק (מסומנים כמשוערים).`);
+  const srcCount = {};
+  for (const e of evs) srcCount[e.src || "gdelt"] = (srcCount[e.src || "gdelt"] || 0) + 1;
+  lines.push(`מקורות איסוף: GDELT (${srcCount.gdelt || 0} אירועים), חדל\"פים תרמיים NASA FIRMS (${srcCount.firms || 0}), רעידות אדמה USGS (${srcCount.usgs || 0}), כותרות חיות ממוקמות מ-BBC / אל ג'זירה / ynet (${srcCount.rss || 0}).`);
+  lines.push(`דיוק מיקום: כל ${evs.length} האירועים ממוקמים ברמת עיר/אתר בלבד — אירועים ללא מיקום פיזי מזוהה לא נכנסים ללוח.`);
   if (store.alerts.length) lines.push(`${store.alerts.filter(a => a.t >= cutoff).length} איתותי הסלמה הופעלו במהלך היום האחרון.`);
 
   return {

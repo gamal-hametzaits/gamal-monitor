@@ -112,15 +112,15 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 </div></div>
 
 <footer>
-  מקור הנתונים: <b>GDELT 2.0 Events</b> — ניתוח אוטומטי של סיקור חדשותי גלובלי, מתעדכן כל 15 דקות.
+  מקורות: <b>GDELT 2.0 Events</b> (סיקור חדשותי גלובלי, כל 15 דק') · <b>USGS</b> (רעידות אדמה, כמעט בזמן אמת) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · כותרות חיות BBC / אל ג'זירה / ynet (ממוקמות רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
   מפה: OpenStreetMap · Esri Dark Gray.
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const CATCOL = {conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
-let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null, preciseOnly = true;
+const CATCOL = {natural:'#B06BFF',conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
+let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null;
 const PREC = {city:{he:'עיר',w:1.5,op:.5},adm1:{he:'מחוז',w:1.2,op:.3},country:{he:'~מדינה',w:1,op:.12},unknown:{he:'משוער',w:1,op:.12}};
 
 function fmtT(s){ if(!s||s.length<14) return '—'; return s.slice(8,10)+':'+s.slice(10,12)+' · '+s.slice(6,8)+'/'+s.slice(4,6); }
@@ -154,7 +154,7 @@ function renderFeed(){
     return `<div class="ev" style="border-inline-start-color:${col}">
       <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${(e.place||e.ctry||'—').split(',').slice(0,2).join(',')}</span>${(e.prec==='country'||e.prec==='unknown')?'<span style="color:var(--dim);font-size:11px" title="מיקום ברמת מדינה בלבד">≈</span>':''}<span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')||''}</div>
-      <div class="meta"><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+      <div class="meta"><span style="color:#666">${({gdelt:'GDELT',usgs:'USGS',rss:'RSS',firms:'NASA FIRMS'})[e.src]||'GDELT'}</span><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -166,7 +166,6 @@ function renderMap(){
     if (!activeCats.has(e.cat)) continue;
     if (e.lat==null||e.lon==null) { hidden++; continue; }
     const pr = PREC[e.prec]||PREC.country;
-    if (preciseOnly && e.prec==='country') { hidden++; continue; }
     const col = CATCOL[e.cat]||'#8A8A8A';
     const r = Math.min(4 + Math.sqrt(e.ment||1)*1.6, 16);
     const hollow = e.prec==='country'||e.prec==='unknown';
@@ -175,7 +174,7 @@ function renderMap(){
     m.addTo(layerGroups[e.cat]);
     shown++;
   }
-  map._precNote = `${shown} מוצגים · ${hidden} מוסתרים (ללא מיקום מדויק)`;
+  map._precNote = `${shown} אירועים ממוקמים ברמת עיר/אתר בלבד`;
   const n = document.getElementById('precnote'); if (n) n.textContent = map._precNote;
 }
 
@@ -192,15 +191,14 @@ function renderLegend(){
 
 function renderFilters(){
   const el = document.getElementById('filters');
-  el.innerHTML = `<button class="fbtn ${preciseOnly?'active':''}" data-c="__prec">מדויק בלבד</button>` + ['all',...Object.keys(CATCOL)].map(c=>{
+  el.innerHTML = ['all',...Object.keys(CATCOL)].map(c=>{
     const lbl = c==='all'?'הכל':DATA.cats[c].he;
     const act = c==='all' ? activeCats.size===6 : activeCats.has(c);
     return `<button class="fbtn ${act?'active':''}" data-c="${c}">${lbl}</button>`;
   }).join('');
   el.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>{
     const c=b.dataset.c;
-    if(c==='__prec'){ preciseOnly=!preciseOnly; }
-    else if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
+    if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
     else { activeCats.has(c)?activeCats.delete(c):activeCats.add(c); }
     renderFilters(); renderLegend(); renderMap();
   });
