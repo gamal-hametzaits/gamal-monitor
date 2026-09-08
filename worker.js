@@ -6,13 +6,86 @@
 import { unzipSync, strFromU8 } from "fflate";
 
 const BBOX = { minLat: 12, maxLat: 42, minLon: 24, maxLon: 64 }; // Middle East incl. Red Sea
+let ADSB_DEBUG = [];
 const ME_COUNTRIES = new Set(["IS","LE","SY","IR","IZ","SA","YE","EG","JO","TU","AE","QA","KU","BH","OM","GZ","WE","DJ","LY","SD","EI"]);
 const MAX_EVENTS = 5000;
 const MAX_ALERTS = 60;
 const WINDOW_KEEP = 96;
 const GEOCODE_PER_RUN = 8;
 
+const ADSB_POINTS = [  // lat, lon, radius(nm) <= 250
+  [33.5, 36.0, 200],  // Levant
+  [31.0, 44.5, 220],  // Iraq
+  [26.5, 51.5, 220],  // Gulf
+  [15.5, 42.5, 200],  // Red Sea south
+  [34.0, 53.5, 220],  // Iran
+];
+const MIL_TYPES = new Set(["K35R","K35E","KC35","K46A","C17","C5M","C30J","C130","E3TF","E3CF","E6","E8","RC35","R135","P8","P3","F15","F16","F18","F22","F35","EUFI","RFAL","MIR2","MRTT","A330","GLEX","GLF5","GLF6","E550","B703","B762","B744","A400","V22","H60","UH60","CH47","H47","Q4","RQ4","MQ4","MQ9","Q9","Q1","HERON","HER1","EITM"]);
+const MIL_CALL = /^(RCH|CNV|DUKE|LAGR|TOPCT|NATO|QID|IAM|BAF|GAF|HAF|TURK|ASENA|IAF|ISF|RSF|EVAC|MEDEX|SAM|SPAR|PAT|JAKE|HOMER|FORTE|REBEL|VIPER|DRAGN)/i;
+
+async function fetchAdsbOpenSky() {
+  try {
+    const u = `https://opensky-network.org/api/states/all?lamin=${BBOX.minLat}&lomin=${BBOX.minLon}&lamax=${BBOX.maxLat}&lomax=${BBOX.maxLon}`;
+    const r = await fetch(u, { headers: { "User-Agent": "gamal-monitor/1.0" } });
+    ADSB_DEBUG.push("opensky:" + r.status);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const out = [];
+    for (const st of d.states || []) {
+      const cs = (st[1] || "").trim(), lat = st[6], lon = st[5];
+      if (lat == null || lon == null || st[8]) continue;         // skip on-ground
+      if (!MIL_CALL.test(cs)) continue;                            // callsign-pattern ID only
+      out.push({
+        id: "ads-" + st[0], d: nowStamp(), a1: cs || st[0], a2: st[2] || "",
+        code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
+        place: `${cs || st[0]} · ${Math.round((st[7] || 0) * 3.281)} ft · ${st[2] || ""}`,
+        ctry: "", lat, lon, prec: "city", geo: "adsb",
+        url: "https://globe.adsb.lol/?icao=" + st[0], cat: "military_air", src: "adsb",
+      });
+      if (out.length >= 120) break;
+    }
+    return out;
+  } catch (e) { ADSB_DEBUG.push("opensky:err:" + String(e && e.message || e).slice(0, 50)); return null; }
+}
+
+async function fetchAdsb() {
+  const os = await fetchAdsbOpenSky();
+  if (os) return os;
+  const out = [];
+  const seen = new Set();
+  for (const [lat, lon, dist] of ADSB_POINTS) {
+    try {
+      let r = null, key = "ac", srcTag = "lol";
+      r = await fetch(`https://api.adsb.lol/v2/point/${lat}/${lon}/${dist}`, { headers: { "User-Agent": "gamal-monitor/1.0 (personal OSINT dashboard)" } });
+      ADSB_DEBUG.push(lat + ":lol:" + r.status);
+      ADSB_DEBUG.push(lat + ":" + srcTag + ":" + r.status);
+      if (!r.ok) continue;
+      const d = await r.json();
+      d.ac = d.ac || d[key] || [];
+      ADSB_DEBUG.push(lat + ":n" + d.ac.length);
+      for (const a of d.ac || []) {
+        if (a.lat == null || a.lon == null) continue;
+        if (seen.has(a.hex)) continue;
+        const isMil = ((a.dbFlags || 0) & 1) || MIL_TYPES.has((a.t || "").toUpperCase()) || MIL_CALL.test((a.flight || "").trim());
+        if (!isMil) continue;
+        if (a.lat < BBOX.minLat || a.lat > BBOX.maxLat || a.lon < BBOX.minLon || a.lon > BBOX.maxLon) continue;
+        seen.add(a.hex);
+        out.push({
+          id: "ads-" + a.hex, d: nowStamp(), a1: (a.flight || a.hex).trim(), a2: a.r || "",
+          code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
+          place: `${(a.flight || a.hex).trim()} · ${a.t || "?"} · ${Math.round(a.alt_baro === "ground" ? 0 : a.alt_baro || 0)} ft`,
+          ctry: "", lat: a.lat, lon: a.lon, prec: "city", geo: "adsb",
+          url: "https://globe.adsb.lol/?icao=" + a.hex, cat: "military_air", src: "adsb",
+        });
+      }
+    } catch (e) { ADSB_DEBUG.push(lat + ":err:" + String(e && e.message || e).slice(0, 50)); }
+    await sleep(1000);
+  }
+  return out.slice(0, 140);
+}
+
 const CATS = {
+  military_air: { he: "תעופה צבאית", color: "#00E5FF" },
   natural:   { he: "טבע ואסונות",       color: "#B06BFF" },
   conflict:  { he: "עימות צבאי",        color: "#E01F2E" },
   posture:   { he: "איומים / תנועות כוחות", color: "#FF7A1A" },
@@ -25,9 +98,11 @@ const CATS = {
 const ECON_CODES = new Set(["164","165","166","172","173","174"]);
 
 const RSS_FEEDS = [
+  { url: "https://www.ynet.co.il/Integration/StoryRss1854.xml", name: "ynet מבזקים", me: true },
+  { url: "https://www.ynet.co.il/Integration/StoryRss2.xml", name: "ynet", me: false },
+  { url: "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx", name: "Jerusalem Post", me: true },
   { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false },
-  { url: "https://www.ynet.co.il/Integration/StoryRss2.xml", name: "ynet", me: false },
 ];
 const GAZ = [
 ["Tehran|טהרן",35.69,51.39],["Isfahan|איספהאן",32.65,51.67],["Shiraz|שיראז",29.59,52.58],["Tabriz|תבריז",38.08,46.29],["Qom",34.64,50.88],["Bandar Abbas",27.18,56.27],["Ahvaz",31.32,48.67],["Kermanshah",34.31,47.06],["Karaj",35.84,50.99],
@@ -47,6 +122,29 @@ const GAZ = [
 const GAZ_RE = GAZ.map(([re,lat,lon]) => [new RegExp("\\b(?:" + re + ")", "i"), lat, lon]);
 function gazLocate(title) {
   for (const [re, lat, lon] of GAZ_RE) if (re.test(title)) return { lat, lon };
+  return null;
+}
+
+function kineticType(code) {
+  if (!code) return null;
+  const K = [
+    ["1952", "מתקפת מל\"טים", "strike"], ["1951", "תקיפה אווירית מדויקת", "strike"], ["195", "תקיפה אווירית", "strike"],
+    ["194", "אש ארטילרית / שריון", "fight"], ["193", "קרב ירי", "fight"], ["192", "כיבוש שטח", "fight"],
+    ["191", "סגר", "fight"], ["196", "הפרת הפסקת אש", "fight"], ["190", "לחימה", "fight"],
+    ["1833", "פיצוץ מטען צד", "strike"], ["1832", "פיצוץ רכב תופת", "strike"], ["1831", "פיגוע התאבדות", "strike"], ["183", "פיגוע פיצוץ", "strike"],
+    ["186", "חיסול", "strike"], ["185", "ניסיון חיסול", "strike"], ["181", "חטיפה", "fight"], ["182", "תקיפה", "fight"], ["184", "מגן אנושי", "fight"], ["180", "אלימות", "fight"], ["18", "תקיפה", "fight"],
+    ["204", "טיהור אתני", "mass"], ["203", "טבח", "mass"], ["202", "פשעי מלחמה", "mass"], ["201", "זוועות", "mass"], ["200", "אלימות המונית", "mass"], ["20", "אלימות המונית", "mass"],
+  ];
+  for (const [pre, he, kind] of K) if (code.startsWith(pre)) return { he, kind };
+  return null;
+}
+
+function rssEtype(t) {
+  if (/intercept|יירט|יירוט|יירוטו|יורט/i.test(t)) return { he: "יירוט", kind: "intercept" };
+  if (/נפילה|נפילות|פגיעה ישירה|direct hit|impacts?|hit (?:a |the )?/i.test(t)) return { he: "התקלה / פגיעה", kind: "impact" };
+  if (/launch|שיגור|שוגר|שוגרו|מטח|salvo|rockets? (?:fired|fire)|ירי רקט/i.test(t)) return { he: "שיגור", kind: "launch" };
+  if (/drone|uav|מל\"ט|כטב\"ם|כטבם/i.test(t)) return { he: "מתקפת מל\"טים", kind: "strike" };
+  if (/strike|airstrike|תקיפה|תקף|תקפה|חיסול|חוסל|התקיפ/i.test(t)) return { he: "תקיפה", kind: "strike" };
   return null;
 }
 
@@ -149,12 +247,13 @@ async function fetchRss(feed) {
       if (!feed.me && cat === "other" && !ME_TERMS.test(title)) continue;
       const g = gazLocate(title);
       if (!g) continue;                                  // no resolved physical location -> drop
+      const et = rssEtype(title);
       const ts = Date.parse(pd);
       out.push({
         id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
         a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
         tone: 0, place: title, ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
-        url: unxml(ln).slice(0, 300), cat: cat === "other" ? "diplomacy" : cat, src: "rss",
+        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et,
       });
     }
     return out;
@@ -201,6 +300,8 @@ function parseBatch(text) {
     const code = c[26] || "";
     const prec = precFromGeoType(c[51], hasCoords);
     if (prec === "country") continue;                    // no country-centroid fallbacks
+    const cat0 = classify(code);
+    if (cat0 === "other") continue;                      // cut generic noise
     out.push({
       id: c[0],
       d: c[59],
@@ -217,10 +318,13 @@ function parseBatch(text) {
       lon: hasCoords ? lon : null,
       prec,
       url: (c[60] || "").slice(0, 300),
-      cat: classify(code),
+      cat: cat0, etype: kineticType(code),
     });
   }
-  return out;
+  // cap diplomacy noise: keep the 25 most-covered per batch
+  const dip = out.filter(e => e.cat === "diplomacy").sort((a, b) => b.ment - a.ment);
+  const keepDip = new Set(dip.slice(0, 25).map(e => e.id));
+  return out.filter(e => e.cat !== "diplomacy" || keepDip.has(e.id));
 }
 
 function gridKey(e) { return `${Math.round(e.lat)}_${Math.round(e.lon)}`; }
@@ -344,7 +448,11 @@ async function ingestInner(env) {
     store.lastfile = url;
   }
 
-  const extras = (await fetchUsgs()).concat(await fetchFirms(), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
+  ADSB_DEBUG = [];
+  const adsb = await fetchAdsb();
+  const adsbIds = new Set(adsb.map(e => e.id));
+  store.events = store.events.filter(e => e.src !== "adsb" || !adsbIds.has(e.id));  // movers get fresh positions
+  const extras = adsb.concat(await fetchUsgs(), await fetchFirms(), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
   store.events = store.events.concat(freshExtras);
@@ -358,7 +466,9 @@ async function ingestInner(env) {
   const geocoded = await geocodePending(store);
 
   const cutoff = nowStampMinus(26 * 3600 * 1000);
+  const adsbCut = nowStampMinus(40 * 60 * 1000);
   store.events = store.events.filter(e => e.lat != null && e.prec !== "unknown");
+  store.events = store.events.filter(e => e.src !== "adsb" || e.d >= adsbCut);
   store.events = store.events.filter(e => e.d >= cutoff).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, MAX_EVENTS);
 
   if (batch.length) {
@@ -374,7 +484,7 @@ async function ingestInner(env) {
   for (const e of store.events) precCount[e.prec] = (precCount[e.prec] || 0) + 1;
   const srcs = {};
   for (const e of store.events) srcs[e.src || "gdelt"] = (srcs[e.src || "gdelt"] || 0) + 1;
-  return { ok: true, added: batch.length, extras: freshExtras.length, geocoded, prec: precCount, srcs, updated: store.updated };
+  return { ok: true, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
 }
 
 function fmtT(stamp) {
@@ -416,7 +526,12 @@ function buildReport(store) {
   for (const h of hotspots.slice(0, 3)) lines.push(`מוקד חם: ${h.place} — ${h.n} אירועי עימות/הצבת כוח, טון ממוצע ${h.tone}.`);
   const srcCount = {};
   for (const e of evs) srcCount[e.src || "gdelt"] = (srcCount[e.src || "gdelt"] || 0) + 1;
-  lines.push(`מקורות איסוף: GDELT (${srcCount.gdelt || 0} אירועים), חדל\"פים תרמיים NASA FIRMS (${srcCount.firms || 0}), רעידות אדמה USGS (${srcCount.usgs || 0}), כותרות חיות ממוקמות מ-BBC / אל ג'זירה / ynet (${srcCount.rss || 0}).`);
+  const kin = evs.filter(e => e.etype);
+  const byKind = {};
+  for (const e of kin) byKind[e.etype.kind] = (byKind[e.etype.kind] || 0) + 1;
+  if (kin.length) lines.push(`${kin.length} אירועים קינטיים: ${byKind.strike || 0} תקיפות/שיגורים, ${byKind.intercept || 0} יירוטים, ${byKind.impact || 0} התקלות, ${byKind.fight || 0} לחימה, ${byKind.mass || 0} אלימות המונית. מבוסס דיווחים — לא אישור רשמי.`);
+  lines.push(`מקורות איסוף: GDELT (${srcCount.gdelt || 0} אירועים), חדל\"פים תרמיים NASA FIRMS (${srcCount.firms || 0}), רעידות אדמה USGS (${srcCount.usgs || 0}), תעופה צבאית ADS-B (${srcCount.adsb || 0}), כותרות חיות ממוקמות (${srcCount.rss || 0}).`);
+  lines.push(`כיסוי וכנות: שכבת התעופה (ADS-B) מושבתת כרגע — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; היא תופעל אוטומטית אם הגישה תיפתח. AIS לספינות אינו זמין חינם ללא מפתח ולכן אינו מוצג. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar) — שכבת NASA GIBS היא רזולוציה נמוכה ולא טקטית.`);
   lines.push(`דיוק מיקום: כל ${evs.length} האירועים ממוקמים ברמת עיר/אתר בלבד — אירועים ללא מיקום פיזי מזוהה לא נכנסים ללוח.`);
   if (store.alerts.length) lines.push(`${store.alerts.filter(a => a.t >= cutoff).length} איתותי הסלמה הופעלו במהלך היום האחרון.`);
 

@@ -85,12 +85,15 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
   <aside>
     <div class="panel-h">⚠ איתותי הסלמה <span class="tag" id="alertcount"></span></div>
     <div id="alerts"></div>
+    <div class="panel-h">🎯 תקיפות ויירוטים <span class="tag" id="kcount"></span></div>
+    <div id="kinetic" style="max-height:300px;overflow-y:auto;border-bottom:1px solid var(--line)"></div>
     <div class="panel-h">זרם אירועים אחרונים</div>
     <div id="feed"></div>
   </aside>
   <div id="mapwrap">
     <div id="filters"></div>
     <button id="reportbtn">📄 דוח מצב</button>
+    <button id="gibsbtn" class="fbtn" style="position:absolute;top:60px;inset-inline-end:14px;z-index:500">🛰 תצלום יומי NASA</button>
     <div id="map"></div>
     <div class="legend" id="legend"><div style="font-weight:800;margin-bottom:4px">קטגוריות</div></div>
     <div id="precnote" style="position:absolute;bottom:14px;inset-inline-end:14px;z-index:500;background:rgba(11,11,11,.88);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--dim)"></div>
@@ -112,20 +115,32 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 </div></div>
 
 <footer>
-  מקורות: <b>GDELT 2.0 Events</b> (סיקור חדשותי גלובלי, כל 15 דק') · <b>USGS</b> (רעידות אדמה, כמעט בזמן אמת) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · כותרות חיות BBC / אל ג'זירה / ynet (ממוקמות רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.
+  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה (ממוקמות רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.<br>
+מה שאין, בכנות: שכבת התעופה הצבאית (ADS-B) מושבתת — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; תופעל אוטומטית אם תיפתח. תנועת ספינות (AIS) גלובלית חינמית ללא מפתח לא קיימת — לא מוצגת במקום לזייף. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar); שכבת ה-NASA היומית היא רזולוציה נמוכה בלבד ולא טקטית. התראות צבע אדום: אין מקור רשמי נגיש ללא חסימה גיאוגרפית — לא מוצג.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
   מפה: OpenStreetMap · Esri Dark Gray.
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const CATCOL = {natural:'#B06BFF',conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
+const CATCOL = {military_air:'#00E5FF',natural:'#B06BFF',conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
 let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null;
 const PREC = {city:{he:'עיר',w:1.5,op:.5},adm1:{he:'מחוז',w:1.2,op:.3},country:{he:'~מדינה',w:1,op:.12},unknown:{he:'משוער',w:1,op:.12}};
 
 function fmtT(s){ if(!s||s.length<14) return '—'; return s.slice(8,10)+':'+s.slice(10,12)+' · '+s.slice(6,8)+'/'+s.slice(4,6); }
 
 map = L.map('map',{zoomControl:true,attributionControl:false}).setView([29.5,42],5);
+let gibsLayer = null;
+function gibsDate(){ const d = new Date(Date.now()-86400000); return d.toISOString().slice(0,10); }
+document.addEventListener('click', e=>{
+  if (e.target.id === 'gibsbtn'){
+    if (gibsLayer){ map.removeLayer(gibsLayer); gibsLayer=null; e.target.classList.remove('active'); }
+    else {
+      gibsLayer = L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${gibsDate()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,{maxZoom:9,opacity:.55}).addTo(map);
+      e.target.classList.add('active');
+    }
+  }
+});
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:12}).addTo(map);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:12}).addTo(map);
 L.control.attribution({prefix:false}).addAttribution('© OSM · Esri · HERE · Garmin').addTo(map);
@@ -145,6 +160,22 @@ function renderAlerts(){
   document.getElementById('alertcount').textContent = DATA.alerts.length ? DATA.alerts.length+' פעילים' : '';
   if (!DATA.alerts.length){ el.innerHTML = '<div class="alert empty">אין איתותים כרגע — המערכת סורקת כל 15 דקות</div>'; return; }
   el.innerHTML = DATA.alerts.slice(0,12).map(a=>`<div class="alert">${a.text}<div class="t mono">${fmtT(a.t)}</div></div>`).join('');
+}
+
+const KINDCOL = {strike:'#E01F2E',intercept:'#3E9BFF',launch:'#FF7A1A',impact:'#F5D90A',fight:'#E01F2E',mass:'#E01F2E'};
+function renderKinetic(){
+  const el = document.getElementById('kinetic');
+  const kin = DATA.events.filter(e=>e.etype).slice(0,40);
+  document.getElementById('kcount').textContent = kin.length ? kin.length+' ב-26 שעות' : '';
+  if (!kin.length){ el.innerHTML = '<div class="ev empty">אין אירועים קינטיים מתועדים כרגע</div>'; return; }
+  el.innerHTML = kin.map(e=>{
+    const col = KINDCOL[e.etype.kind]||'#E01F2E';
+    return `<div class="ev" style="border-inline-start-color:${col}">
+      <div class="head"><span class="chip" style="background:${col}">${e.etype.he}</span><span class="place">${(e.place||'—').split(',').slice(0,2).join(',')}</span><span class="when mono">${fmtT(e.d)}</span></div>
+      <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</div>
+      <div class="meta"><span style="color:#666">${e.src==='rss'?'כותרת חדשותית':'דיווח GDELT'} · לא אישור רשמי</span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderFeed(){
@@ -217,7 +248,7 @@ function renderTrend(){
 async function load(){
   const r = await fetch('/api/data'); DATA = await r.json();
   document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
-  renderStats(); renderAlerts(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend();
+  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend();
 }
 
 document.getElementById('reportbtn').onclick = async ()=>{
