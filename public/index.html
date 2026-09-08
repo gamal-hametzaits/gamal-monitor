@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <footer>
   מקור הנתונים: <b>GDELT 2.0 Events</b> — ניתוח אוטומטי של סיקור חדשותי גלובלי, מתעדכן כל 15 דקות.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
-  מפה: OpenStreetMap · CARTO.
+  מפה: OpenStreetMap · Esri Dark Gray.
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -124,8 +124,9 @@ let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = nul
 function fmtT(s){ if(!s||s.length<14) return '—'; return s.slice(8,10)+':'+s.slice(10,12)+' · '+s.slice(6,8)+'/'+s.slice(4,6); }
 
 map = L.map('map',{zoomControl:true,attributionControl:false}).setView([29.5,42],5);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:12,subdomains:'abcd'}).addTo(map);
-L.control.attribution({prefix:false}).addAttribution('© OSM © CARTO').addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:12}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:12}).addTo(map);
+L.control.attribution({prefix:false}).addAttribution('© OSM · Esri · HERE · Garmin').addTo(map);
 for (const c of Object.keys(CATCOL)) layerGroups[c] = L.layerGroup().addTo(map);
 
 function renderStats(){
