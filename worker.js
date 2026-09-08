@@ -27,7 +27,7 @@ async function openskyToken(env, store) {
   const now = Date.now() / 1000;
   if (store.oadsb && store.oadsb.tok && store.oadsb.exp > now + 60) return store.oadsb.tok;
   if (!env.OPENSKY_CLIENT_ID || !env.OPENSKY_CLIENT_SECRET) return null;
-  const r = await fetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token", {
+  const r = await tfetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "grant_type=client_credentials&client_id=" + encodeURIComponent(env.OPENSKY_CLIENT_ID) + "&client_secret=" + encodeURIComponent(env.OPENSKY_CLIENT_SECRET),
@@ -45,7 +45,7 @@ async function fetchAdsbOpenSky(env, store) {
     const tok = await openskyToken(env, store);
     const headers = { "User-Agent": "gamal-monitor/1.0" };
     if (tok) headers["Authorization"] = "Bearer " + tok;
-    const r = await fetch(u, { headers });
+    const r = await tfetch(u, { headers }, 8000);
     ADSB_DEBUG.push("opensky:" + r.status + (tok ? ":auth" : ":anon"));
     if (!r.ok) return null;
     const d = await r.json();
@@ -69,38 +69,7 @@ async function fetchAdsbOpenSky(env, store) {
 
 async function fetchAdsb(env, store) {
   const os = await fetchAdsbOpenSky(env, store);
-  if (os) return os;
-  const out = [];
-  const seen = new Set();
-  for (const [lat, lon, dist] of ADSB_POINTS) {
-    try {
-      let r = null, key = "ac", srcTag = "lol";
-      r = await fetch(`https://api.adsb.lol/v2/point/${lat}/${lon}/${dist}`, { headers: { "User-Agent": "gamal-monitor/1.0 (personal OSINT dashboard)" } });
-      ADSB_DEBUG.push(lat + ":lol:" + r.status);
-      ADSB_DEBUG.push(lat + ":" + srcTag + ":" + r.status);
-      if (!r.ok) continue;
-      const d = await r.json();
-      d.ac = d.ac || d[key] || [];
-      ADSB_DEBUG.push(lat + ":n" + d.ac.length);
-      for (const a of d.ac || []) {
-        if (a.lat == null || a.lon == null) continue;
-        if (seen.has(a.hex)) continue;
-        const isMil = ((a.dbFlags || 0) & 1) || MIL_TYPES.has((a.t || "").toUpperCase()) || MIL_CALL.test((a.flight || "").trim());
-        if (!isMil) continue;
-        if (a.lat < BBOX.minLat || a.lat > BBOX.maxLat || a.lon < BBOX.minLon || a.lon > BBOX.maxLon) continue;
-        seen.add(a.hex);
-        out.push({
-          id: "ads-" + a.hex, d: nowStamp(), a1: (a.flight || a.hex).trim(), a2: a.r || "",
-          code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
-          place: `${(a.flight || a.hex).trim()} · ${a.t || "?"} · ${Math.round(a.alt_baro === "ground" ? 0 : a.alt_baro || 0)} ft`,
-          ctry: "", lat: a.lat, lon: a.lon, prec: "city", geo: "adsb",
-          url: "https://globe.adsb.lol/?icao=" + a.hex, cat: "military_air", src: "adsb",
-        });
-      }
-    } catch (e) { ADSB_DEBUG.push(lat + ":err:" + String(e && e.message || e).slice(0, 50)); }
-    await sleep(1000);
-  }
-  return out.slice(0, 140);
+  return os || [];   // adsb.lol/adsb.fi block cloud egress permanently (429/403) - not retried per run
 }
 
 const CATS = {
@@ -205,6 +174,7 @@ function classifyText(t) {
   return "other";
 }
 
+function tfetch(u, opts = {}, ms = 9000) { return fetch(u, { ...opts, signal: AbortSignal.timeout(ms) }); }
 function hashId(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return h.toString(36); }
 function toStamp(ms) { return new Date(ms).toISOString().replace(/[-:T]/g, "").slice(0, 14); }
 
@@ -219,7 +189,7 @@ function nearestGaz(lat, lon) {
 
 async function fetchFirms() {
   try {
-    const r = await fetch("https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv");
+    const r = await tfetch("https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv", {}, 8000);
     if (!r.ok) return [];
     const txt = await r.text();
     const lines = txt.split("\n");
@@ -252,7 +222,7 @@ async function fetchFirms() {
 
 async function fetchUsgs() {
   try {
-    const r = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson");
+    const r = await tfetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson", {}, 8000);
     if (!r.ok) return [];
     const d = await r.json();
     const out = [];
@@ -276,7 +246,7 @@ function unxml(t) { return t.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/
 
 async function fetchRss(feed) {
   try {
-    const r = await fetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } });
+    const r = await tfetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } }, 8000);
     if (!r.ok) return [];
     const xml = await r.text();
     const out = [];
@@ -386,7 +356,7 @@ async function loadStore(env) {
 async function geocodeOne(name) {
   try {
     const u = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(name);
-    const r = await fetch(u, { headers: { "User-Agent": "gamal-monitor/1.0 (personal OSINT dashboard)" } });
+    const r = await fetch(u, { headers: { "User-Agent": "gamal-monitor/1.0 (personal OSINT dashboard)" } }, 8000);
     if (!r.ok) return null;
     const arr = await r.json();
     if (!arr.length) return { miss: true };
@@ -482,7 +452,7 @@ async function fetchTelegram(store) {
   store.tgCursor = (store.tgCursor + TG_PER_RUN) % chans.length;
   for (const h of picks) {
     try {
-      const r = await fetch("https://t.me/s/" + h, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" } });
+      const r = await tfetch("https://t.me/s/" + h, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" } });
       if (!r.ok) { TG_DEBUG.push(h + ":" + r.status); continue; }
       const html = await r.text();
       TG_DEBUG.push(h + ":len" + html.length + ":dp" + (html.split("data-post=").length - 1) + ":tx" + (html.split("tgme_widget_message_text").length - 1));
@@ -521,7 +491,7 @@ async function ingest(env) {
 }
 async function ingestInner(env) {
   const store = await loadStore(env);
-  const lu = await fetch("https://data.gdeltproject.org/gdeltv2/lastupdate.txt", { cf: { cacheTtl: 0 } });
+  const lu = await tfetch("https://data.gdeltproject.org/gdeltv2/lastupdate.txt", { cf: { cacheTtl: 0 } }, 8000);
   if (!lu.ok) return { ok: false, reason: "lastupdate http " + lu.status };
   const txt = await lu.text();
   const line = txt.split("\n").find(l => l.includes(".export.CSV.zip"));
@@ -529,7 +499,7 @@ async function ingestInner(env) {
   const url = line.trim().split(/\s+/)[2];
   let batch = [], zipNote = null;
   if (url !== store.lastfile) {
-    const zr = await fetch(url.replace("http://", "https://"));
+    const zr = await tfetch(url.replace("http://", "https://"), {}, 20000);
     if (!zr.ok) {
       zipNote = "zip http " + zr.status;   // GDELT lists files before upload completes; retry next cron run
     } else {
@@ -555,7 +525,8 @@ async function ingestInner(env) {
   const adsbIds = new Set(adsb.map(e => e.id));
   store.events = store.events.filter(e => e.src !== "adsb" || !adsbIds.has(e.id));  // movers get fresh positions
   TG_DEBUG = [];
-  const extras = adsb.concat(await fetchUsgs(), await fetchFirms(), await fetchTelegram(store), ...(await Promise.all(RSS_FEEDS.map(fetchRss))));
+  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store), Promise.all(RSS_FEEDS.map(fetchRss))]);
+  const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
   store.events = store.events.concat(freshExtras);
