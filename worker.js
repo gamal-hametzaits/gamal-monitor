@@ -620,8 +620,11 @@ function buildReport(store) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    function stampMs(s) { return s && s.length >= 14 ? Date.parse(s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8)+"T"+s.slice(8,10)+":"+s.slice(10,12)+":"+s.slice(12,14)+"Z") : 0; }
     if (url.pathname === "/api/data") {
       const store = await loadStore(env);
+      if (Date.now() - stampMs(store.updated) > 4 * 60 * 1000) ctx.waitUntil(ingest(env));   // stale-driven refresh: any open dashboard keeps data flowing even if CF cron is not delivered
+      
       return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS });
     }
     if (url.pathname === "/api/report") {
