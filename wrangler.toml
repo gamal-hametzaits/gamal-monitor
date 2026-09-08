@@ -1,0 +1,14 @@
+name = "gamal-monitor"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+account_id = "ab9b55e00637deafc81be8a2e155b1c7"
+
+[assets]
+directory = "./public"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[kv_namespaces]]
+binding = "MONITOR_KV"
+id = "b2c010a816144ff4b05eac560b38992d"

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הגמל · מוניטור גיאופוליטי — מזרח תיכון</title>
+<meta name="description" content="מוניטור אירועים גיאופוליטיים במזרח התיכון — נתוני GDELT חיים, מפה, איתותי הסלמה ודוחות.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0B0B0B;--panel:#121212;--line:#232323;--txt:#EDEDED;--dim:#9A9A9A;--red:#E01F2E;--orange:#FF7A1A;--yellow:#F5D90A;--green:#2ECC71;--blue:#3E9BFF;--gray:#8A8A8A}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:Heebo,sans-serif;min-height:100vh}
+.mono{font-family:"IBM Plex Mono",monospace}
+header{border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font-weight:900;font-size:22px;letter-spacing:-.5px}
+.brand em{color:var(--red);font-style:normal}
+.sub{color:var(--dim);font-size:13px}
+.live{display:flex;align-items:center;gap:7px;margin-inline-start:auto;font-size:13px;color:var(--dim)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(224,31,46,.55)}70%{box-shadow:0 0 0 9px rgba(224,31,46,0)}100%{box-shadow:0 0 0 0 rgba(224,31,46,0)}}
+.stats{display:flex;border-bottom:1px solid var(--line);overflow-x:auto}
+.stat{flex:1;min-width:110px;padding:14px 16px;border-inline-start:1px solid var(--line)}
+.stat:first-child{border-inline-start:none}
+.stat .num{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600}
+.stat .lbl{font-size:12px;color:var(--dim);margin-top:2px}
+main{display:grid;grid-template-columns:380px 1fr;min-height:calc(100vh - 160px)}
+aside{border-inline-end:1px solid var(--line);display:flex;flex-direction:column;max-height:calc(100vh - 160px)}
+.panel-h{padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel-h .tag{font-size:11px;color:var(--red);font-family:"IBM Plex Mono",monospace}
+#alerts{max-height:260px;overflow-y:auto;border-bottom:1px solid var(--line)}
+.alert{padding:11px 16px;border-bottom:1px solid var(--line);border-inline-start:3px solid var(--red);font-size:13px}
+.alert .t{color:var(--dim);font-size:11px;margin-top:3px}
+.alert.empty,.ev.empty{border:none;color:var(--dim)}
+#feed{flex:1;overflow-y:auto}
+.ev{padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px;border-inline-start:3px solid transparent}
+.ev .head{display:flex;gap:8px;align-items:baseline}
+.ev .place{font-weight:700}
+.ev .when{margin-inline-start:auto;color:var(--dim);font-size:11px;white-space:nowrap}
+.ev .actors{color:var(--dim);font-size:12px;margin-top:2px}
+.ev .meta{display:flex;gap:10px;margin-top:4px;font-size:11px;color:var(--dim)}
+.ev a{color:var(--blue);text-decoration:none}
+.chip{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;font-weight:700;color:#0B0B0B}
+#mapwrap{position:relative}
+#map{position:absolute;inset:0;background:#0B0B0B}
+.leaflet-container{background:#0B0B0B;font-family:Heebo,sans-serif}
+.legend{position:absolute;bottom:14px;inset-inline-start:14px;z-index:500;background:rgba(11,11,11,.88);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px}
+.legend .row{display:flex;align-items:center;gap:8px;margin:3px 0;cursor:pointer}
+.legend .sw{width:10px;height:10px;border-radius:50%}
+.legend .off{opacity:.35}
+#filters{position:absolute;top:14px;inset-inline-start:14px;z-index:500;display:flex;gap:6px;flex-wrap:wrap;max-width:70%}
+.fbtn{background:rgba(11,11,11,.88);border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:5px 12px;font-size:12px;font-family:Heebo;cursor:pointer}
+.fbtn.active{border-color:var(--red);color:#fff}
+#reportbtn{position:absolute;top:14px;inset-inline-end:14px;z-index:500;background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-family:Heebo;font-weight:800;font-size:14px;cursor:pointer}
+#trend{border-top:1px solid var(--line);padding:14px 20px}
+#trend h3{font-size:13px;font-weight:800;margin-bottom:10px;color:var(--dim)}
+#bars{display:flex;align-items:flex-end;gap:3px;height:70px}
+.bar{flex:1;display:flex;flex-direction:column-reverse;gap:0;min-width:8px}
+.bar i{display:block;width:100%}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000;overflow-y:auto}
+#modal .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:760px;margin:40px auto;padding:28px}
+#modal h2{font-size:24px;font-weight:900;margin-bottom:4px}
+#modal .gen{color:var(--dim);font-size:12px;margin-bottom:18px}
+#modal .line{padding:9px 0;border-bottom:1px solid var(--line);font-size:15px;line-height:1.5}
+#modal h4{margin:18px 0 8px;font-size:14px;color:var(--dim)}
+#modal table{width:100%;border-collapse:collapse;font-size:13px}
+#modal td,#modal th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+#modal .disc{margin-top:18px;font-size:12px;color:var(--dim)}
+#close{margin-top:16px;background:none;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 20px;font-family:Heebo;cursor:pointer}
+footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-size:12px;line-height:1.6}
+@media(max-width:900px){main{grid-template-columns:1fr}aside{order:2;max-height:none}#mapwrap{height:60vh}#map{position:absolute}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">הגמל <em>·</em> מוניטור גיאופוליטי</div>
+  <div class="sub">מזרח תיכון · נתוני GDELT בעיכוב ~15 דקות</div>
+  <div class="live"><span class="dot"></span> LIVE <span class="mono" id="updated">—</span></div>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<main>
+  <aside>
+    <div class="panel-h">⚠ איתותי הסלמה <span class="tag" id="alertcount"></span></div>
+    <div id="alerts"></div>
+    <div class="panel-h">זרם אירועים אחרונים</div>
+    <div id="feed"></div>
+  </aside>
+  <div id="mapwrap">
+    <div id="filters"></div>
+    <button id="reportbtn">📄 דוח מצב</button>
+    <div id="map"></div>
+    <div class="legend" id="legend"><div style="font-weight:800;margin-bottom:4px">קטגוריות</div></div>
+  </div>
+</main>
+
+<div id="trend"><h3>עוצמת אירועים · 12 החלונות האחרונים (15 דקות כל חלון)</h3><div id="bars"></div></div>
+
+<div id="modal"><div class="card">
+  <h2>דוח מצב · מזרח תיכון</h2>
+  <div class="gen mono" id="rgen"></div>
+  <div id="rlines"></div>
+  <h4>מוקדים חמים (עימות / תנועות כוח, 24 שעות)</h4>
+  <table id="rhot"><tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr></table>
+  <h4>האירועים המסוקרים ביותר</h4>
+  <table id="rnot"></table>
+  <div class="disc" id="rdisc"></div>
+  <button id="close">סגור</button>
+</div></div>
+
+<footer>
+  מקור הנתונים: <b>GDELT 2.0 Events</b> — ניתוח אוטומטי של סיקור חדשותי גלובלי, מתעדכן כל 15 דקות.
+  האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
+  מפה: OpenStreetMap · CARTO.
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CATCOL = {conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
+let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null;
+
+function fmtT(s){ if(!s||s.length<14) return '—'; return s.slice(8,10)+':'+s.slice(10,12)+' · '+s.slice(6,8)+'/'+s.slice(4,6); }
+
+map = L.map('map',{zoomControl:true,attributionControl:false}).setView([29.5,42],5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:12,subdomains:'abcd'}).addTo(map);
+L.control.attribution({prefix:false}).addAttribution('© OSM © CARTO').addTo(map);
+for (const c of Object.keys(CATCOL)) layerGroups[c] = L.layerGroup().addTo(map);
+
+function renderStats(){
+  const byCat = {}; for (const e of DATA.events) byCat[e.cat]=(byCat[e.cat]||0)+1;
+  let h = `<div class="stat"><div class="num mono">${DATA.events.length}</div><div class="lbl">אירועים · 26 שעות</div></div>`;
+  h += `<div class="stat"><div class="num mono" style="color:var(--red)">${DATA.alerts.length}</div><div class="lbl">איתותי הסלמה</div></div>`;
+  for (const [c,meta] of Object.entries(DATA.cats)) h += `<div class="stat"><div class="num mono" style="color:${meta.color}">${byCat[c]||0}</div><div class="lbl">${meta.he}</div></div>`;
+  document.getElementById('stats').innerHTML = h;
+}
+
+function renderAlerts(){
+  const el = document.getElementById('alerts');
+  document.getElementById('alertcount').textContent = DATA.alerts.length ? DATA.alerts.length+' פעילים' : '';
+  if (!DATA.alerts.length){ el.innerHTML = '<div class="alert empty">אין איתותים כרגע — המערכת סורקת כל 15 דקות</div>'; return; }
+  el.innerHTML = DATA.alerts.slice(0,12).map(a=>`<div class="alert">${a.text}<div class="t mono">${fmtT(a.t)}</div></div>`).join('');
+}
+
+function renderFeed(){
+  const el = document.getElementById('feed');
+  el.innerHTML = DATA.events.slice(0,80).map(e=>{
+    const col = CATCOL[e.cat]||'#8A8A8A';
+    return `<div class="ev" style="border-inline-start-color:${col}">
+      <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${e.place||e.ctry||'—'}</span><span class="when mono">${fmtT(e.d)}</span></div>
+      <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')||''}</div>
+      <div class="meta"><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMap(){
+  for (const c of Object.keys(layerGroups)) layerGroups[c].clearLayers();
+  for (const e of DATA.events){
+    if (!activeCats.has(e.cat)) continue;
+    const col = CATCOL[e.cat]||'#8A8A8A';
+    const r = Math.min(4 + Math.sqrt(e.ment||1)*1.6, 16);
+    const m = L.circleMarker([e.lat,e.lon],{radius:r,color:col,weight:1.5,fillColor:col,fillOpacity:.45});
+    m.bindPopup(`<div dir="rtl" style="font-family:Heebo"><b>${e.place||''}</b><br>${DATA.cats[e.cat].he} · חומרה ${e.gold} · ${e.ment} אזכורים<br><span style="color:#888;font-size:12px">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</span><br>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">למקור ↗</a>`:''}</div>`);
+    m.addTo(layerGroups[e.cat]);
+  }
+}
+
+function renderLegend(){
+  const el = document.getElementById('legend');
+  let h = '<div style="font-weight:800;margin-bottom:4px">קטגוריות (לחיצה מסננת)</div>';
+  for (const [c,meta] of Object.entries(DATA.cats)){
+    const off = activeCats.has(c)?'':' off';
+    h += `<div class="row${off}" data-cat="${c}"><span class="sw" style="background:${meta.color}"></span>${meta.he}</div>`;
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('.row').forEach(r=>r.onclick=()=>{ const c=r.dataset.cat; activeCats.has(c)?activeCats.delete(c):activeCats.add(c); renderLegend(); renderMap(); });
+}
+
+function renderFilters(){
+  const el = document.getElementById('filters');
+  el.innerHTML = ['all',...Object.keys(CATCOL)].map(c=>{
+    const lbl = c==='all'?'הכל':DATA.cats[c].he;
+    const act = c==='all' ? activeCats.size===6 : activeCats.has(c);
+    return `<button class="fbtn ${act?'active':''}" data-c="${c}">${lbl}</button>`;
+  }).join('');
+  el.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>{
+    const c=b.dataset.c;
+    if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
+    else { activeCats.has(c)?activeCats.delete(c):activeCats.add(c); }
+    renderFilters(); renderLegend(); renderMap();
+  });
+}
+
+function renderTrend(){
+  const el = document.getElementById('bars');
+  const ws = DATA.windows.slice(-12);
+  const max = Math.max(1,...ws.map(w=>w.n));
+  el.innerHTML = ws.map(w=>{
+    const segs = Object.entries(w.cats||{}).map(([c,n])=>`<i style="height:${(n/max)*100}%;background:${CATCOL[c]||'#555'}" title="${DATA.cats[c]?.he||c}: ${n}"></i>`).join('');
+    return `<div class="bar" title="${fmtT(w.t)} · ${w.n} אירועים">${segs}</div>`;
+  }).join('');
+}
+
+async function load(){
+  const r = await fetch('/api/data'); DATA = await r.json();
+  document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
+  renderStats(); renderAlerts(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend();
+}
+
+document.getElementById('reportbtn').onclick = async ()=>{
+  const r = await fetch('/api/report'); const d = await r.json();
+  document.getElementById('rgen').textContent = 'הופק '+d.generated+' · נתוני 24 השעות האחרונות';
+  document.getElementById('rlines').innerHTML = d.lines.map(l=>`<div class="line">${l}</div>`).join('');
+  document.getElementById('rhot').innerHTML = '<tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr>'+d.hotspots.map(h=>`<tr><td>${h.place}</td><td class="mono">${h.n}</td><td class="mono">${h.ment}</td><td class="mono" style="color:${h.tone<-3?'var(--red)':'var(--dim)'}">${h.tone}</td></tr>`).join('');
+  document.getElementById('rnot').innerHTML = '<tr><th>אירוע</th><th>קטגוריה</th><th>אזכורים</th><th></th></tr>'+d.notable.map(n=>`<tr><td>${n.place||'—'} <span style="color:var(--dim);font-size:12px">${[n.a1,n.a2].filter(Boolean).join(' ←→ ')}</span><div class="mono" style="font-size:11px;color:var(--dim)">${n.t}</div></td><td><span class="chip" style="background:${CATCOL[n.cat]}">${n.catHe}</span></td><td class="mono">${n.ment}</td><td>${n.url?`<a href="${n.url}" target="_blank" rel="noopener" style="color:var(--blue)">מקור ↗</a>`:''}</td></tr>`).join('');
+  document.getElementById('rdisc').textContent = d.disclaimer;
+  document.getElementById('modal').style.display='block';
+};
+document.getElementById('close').onclick = ()=> document.getElementById('modal').style.display='none';
+document.getElementById('modal').onclick = e=>{ if(e.target.id==='modal') e.target.style.display='none'; };
+
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
