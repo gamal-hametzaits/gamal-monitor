@@ -123,6 +123,15 @@ const RSS_FEEDS = [
   { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false },
 ];
+
+const CAMERAS = [
+  { id: "kotel-aish", name: "הכותל המערבי, ירושלים", lat: 31.7767, lon: 35.2345, kind: "link", url: "https://aish.com/western-wall-page/", src: "Aish Kotel Cam", note: "עמוד שידור חי חיצוני (YouTube) · רענון רציף · אין סנפשוט מוטבע" },
+  { id: "kotel-earthcam", name: "הכותל המערבי (מבט רחב), ירושלים", lat: 31.7783, lon: 35.2354, kind: "link", url: "https://www.earthcam.com/world/israel/jerusalem/?cam=jerusalem", src: "EarthCam", note: "עמוד שידור חי חיצוני · רענון רציף · אין סנפשוט מוטבע" },
+  { id: "tlv-west-beach", name: "חוף תל אביב המערבי (מלון 7EVEN)", lat: 32.0764, lon: 34.7635, kind: "link", url: "https://beachcam.co.il/en/hamaaravi.html", src: "BeachCam Israel", note: "עמוד שידור חי חיצוני · רענון רציף · אין סנפשוט מוטבע" },
+  { id: "tlv-marina", name: "המרינה והטיילת, תל אביב", lat: 32.0856, lon: 34.7674, kind: "link", url: "https://www.webcamtaxi.com/en/israel/tel-aviv/marina-beachfront.html", src: "WebcamTaxi", note: "עמוד שידור חי חיצוני · רענון רציף · אין סנפשוט מוטבע" },
+  { id: "giza-pyramids", name: "הפירמידות, גיזה", lat: 29.9792, lon: 31.1342, kind: "link", url: "https://www.skylinewebcams.com/en/webcam/egypt/cairo/cairo/great-pyramid-of-giza.html", src: "SkylineWebcams", note: "עמוד שידור חי חיצוני · רענון רציף · אין סנפשוט מוטבע" },
+];
+
 const GAZ = [
 ["Tehran|טהרן",35.69,51.39],["Isfahan|איספהאן",32.65,51.67],["Shiraz|שיראז",29.59,52.58],["Tabriz|תבריז",38.08,46.29],["Qom",34.64,50.88],["Bandar Abbas",27.18,56.27],["Ahvaz",31.32,48.67],["Kermanshah",34.31,47.06],["Karaj",35.84,50.99],
 ["Jerusalem|ירושלים",31.77,35.21],["Tel Aviv|תל אביב",32.08,34.78],["Haifa|חיפה",32.79,34.99],["Beersheba|Be'er Sheva|באר שבע",31.25,34.79],["Eilat|אילת",29.56,34.95],["Netanya|נתניה",32.33,34.86],["Ashdod|אשדוד",31.80,34.65],["Ashkelon|אשקלון",31.67,34.57],
@@ -637,7 +646,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/data") {
       const store = await loadStore(env);
-      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store) });
+      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS });
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);

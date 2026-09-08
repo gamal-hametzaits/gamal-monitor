@@ -127,6 +127,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
   מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.<br>
 מה שאין, בכנות: שכבת התעופה הצבאית (ADS-B) מושבתת — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; תופעל אוטומטית אם תיפתח. תנועת ספינות (AIS) גלובלית חינמית ללא מפתח לא קיימת — לא מוצגת במקום לזייף. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar); שכבת ה-NASA היומית היא רזולוציה נמוכה בלבד ולא טקטית. התראות צבע אדום: אין מקור רשמי נגיש ללא חסימה גיאוגרפית — לא מוצג.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
+  שכבת מצלמות: רק מצלמות ציבוריות פתוחות ללא מפתח שאומתו כעובדות — הכותל (Aish/EarthCam), חופי תל אביב (BeachCam/WebcamTaxi), פירמידות גיזה (SkylineWebcams). הסמנים מקשרים לעמוד השידור החיצוני; אין סנפשוטים מוטבעים כי הזרמים חסומי CORS להטמעה. לא נכללו (בכנות): מצלמות IBB איסטנבול (זרמי HLS חסומי CORS והפורטל לא נגיש), מצלמת בורג' ח'ליפה דובאי (העמוד הוסר), וספקי API במפתח כמו Windy/webcams.travel.
   מפה: OpenStreetMap · Esri Dark Gray.
 </footer>
 
@@ -154,6 +155,7 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_D
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:12}).addTo(map);
 L.control.attribution({prefix:false}).addAttribution('© OSM · Esri · HERE · Garmin').addTo(map);
 for (const c of Object.keys(CATCOL)) layerGroups[c] = L.layerGroup().addTo(map);
+let camLayer = L.layerGroup().addTo(map);
 
 function renderStats(){
   const byCat = {}; for (const e of DATA.events) byCat[e.cat]=(byCat[e.cat]||0)+1;
@@ -272,10 +274,21 @@ async function tgRemove(c){
   await load();
 }
 
+function renderCams(){
+  camLayer.clearLayers();
+  const cams = (DATA && DATA.cams) || [];
+  for (const c of cams){
+    const ic = L.divIcon({className:'', html:'<div style="font-size:15px;filter:drop-shadow(0 0 2px #000)">\ud83d\udcf7</div>', iconSize:[18,18], iconAnchor:[9,9]});
+    const m = L.marker([c.lat, c.lon], {icon: ic, zIndexOffset: 500});
+    m.bindPopup(`<div dir="rtl" style="font-family:Heebo;max-width:220px"><b>${c.name}</b><br><span style="color:#888;font-size:11px">${c.src} · ${c.note}</span><br><a href="${c.url}" target="_blank" rel="noopener">פתח שידור חי \u2197</a></div>`);
+    m.addTo(camLayer);
+  }
+}
+
 async function load(){
   const r = await fetch('/api/data'); DATA = await r.json();
   document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
-  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg();
+  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
 }
 
 document.getElementById('reportbtn').onclick = async ()=>{
