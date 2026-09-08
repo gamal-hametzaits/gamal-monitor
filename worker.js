@@ -161,7 +161,28 @@ function rssEtype(t) {
   return null;
 }
 
-const ME_TERMS = /israel|gaza|iran|syria|lebanon|yemen|houthi|hezbollah|hamas|saudi|gulf|red sea|netanyahu|ישראל|עזה|איראן|סוריה|לבנון|חיזבאללה|חמאס|חות|תימן|סעוד|נטניהו|חיסול|טיל/i;
+const ME_TERMS = /israel|gaza|iran|jordan|syria|lebanon|yemen|houthi|hezbollah|hamas|saudi|gulf|red sea|netanyahu|ישראל|עזה|איראן|ירדן|סוריה|לבנון|חיזבאללה|חמאס|חות|תימן|סעוד|נטניהו|חיסול|טיל/i;
+const REGIONS = [
+  [/ירדן|Jordan|الأردن|الاردن/iu, "ירדן"],
+  [/איראן|Iran|ایران/iu, "איראן"],
+  [/ישראל|Israel|إسرائيل|اسرائيل/iu, "ישראל"],
+  [/לבנון|Lebanon|Hezbollah|חיזבאללה|لبنان|حزب الله/iu, "לבנון"],
+  [/סורי|Syria|سوريا/iu, "סוריה"],
+  [/עיראק|Iraq|العراق/iu, "עיראק"],
+  [/תימן|Yemen|חות'י|Houthi|اليمن|الحوثي/iu, "תימן"],
+  [/סעוד|Saudi|السعودية/iu, "סעודיה"],
+  [/מצרי|Egypt|مصر/iu, "מצרים"],
+  [/טורקי|Turkey|Turkish|تركيا/iu, "טורקיה"],
+  [/קטאר|Qatar|قطر/iu, "קטאר"],
+  [/כווית|Kuwait|الكويت/iu, "כווית"],
+  [/בחריין|Bahrain|البحرين/iu, "בחריין"],
+  [/אמירויות|Emirates|UAE|الإمارات/iu, "האמירויות"],
+  [/עזה|Gaza|غزة|חמאס|Hamas/iu, "עזה"],
+  [/הגדה|West Bank|גולן|Golan|الضفة|الجولان/iu, "הגדה והגולן"],
+];
+const CRITICAL_RE = /טיל|שיגור|שוגר|יירט|יירוט|אזעק|תקיפה|תקף|הפצצ|נפילה|פיצוץ|כטב"ם|רחפן|מטח|חיסול|missile|rocket|strike|attack|intercept|drone|siren|ballistic|launch|airstrike|shelling|explosion/iu;
+function regionOf(t) { for (const [re, name] of REGIONS) if (re.test(t)) return name; return ""; }
+
 
 function classifyText(t) {
   t = t || "";
@@ -244,7 +265,7 @@ async function fetchUsgs() {
 
 function unxml(t) { return t.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;|&#x27;/g, "'").replace(/&quot;/g, '"').trim(); }
 
-async function fetchRss(feed) {
+async function fetchRss(feed, feedOut) {
   try {
     const r = await tfetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } }, 8000);
     if (!r.ok) return [];
@@ -260,9 +281,16 @@ async function fetchRss(feed) {
       const cat = classifyText(title);
       if (!feed.me && cat === "other" && !ME_TERMS.test(title)) continue;
       const g = gazLocate(title);
-      if (!g) continue;                                  // no resolved physical location -> drop
       const et = rssEtype(title);
       const ts = Date.parse(pd);
+      if (!g) {
+        // new policy: no pin -> keep in ranked live feed when regional or critical; domestic noise stays out
+        const region = regionOf(title);
+        if (region || et || CRITICAL_RE.test(title)) feedOut.push({ id: "rssf-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
+          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified",
+          region, critical: !!(et || CRITICAL_RE.test(title)) });
+        continue;
+      }
       out.push({
         id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
         a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
@@ -346,7 +374,7 @@ function nowStamp() { return new Date().toISOString().replace(/[-:T]/g, "").slic
 function nowStampMinus(ms) { return new Date(Date.now() - ms).toISOString().replace(/[-:T]/g, "").slice(0, 14); }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function emptyStore() { return { updated: null, lastfile: null, events: [], windows: [], alerts: [], geoc: {} }; }
+async function emptyStore() { return { updated: null, lastfile: null, events: [], windows: [], alerts: [], geoc: {}, feed: [] }; }
 async function loadStore(env) {
   const s = await env.MONITOR_KV.get("store");
   if (!s) return emptyStore();
@@ -442,7 +470,7 @@ function tgChannels(store) {
   return store.tgChannels;
 }
 
-async function fetchTelegram(store) {
+async function fetchTelegram(store, feedOut) {
   const chans = tgChannels(store);
   const out = [];
   if (!chans.length) return out;
@@ -467,10 +495,17 @@ async function fetchTelegram(store) {
         if (text.length < 25) continue;
         txts++;
         const g = gazLocate(text);
-        if (!g) continue;                                   // iron rule: no resolved location -> drop
         const ts = Date.parse(tm || "");
         const postId = dp.split("/").pop();
         const et = rssEtype(text);
+        if (!g) {
+          // keep unlocated reports in live feed when regional or critical, always labeled unverified
+          const region = regionOf(text);
+          if (region || CRITICAL_RE.test(text)) feedOut.push({ id: "tgf-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
+            a1: "@" + h, title: text.slice(0, 200), url: "https://t.me/" + dp, src: TG_LABEL_SRC, tier: "unverified",
+            region, critical: !!CRITICAL_RE.test(text) });
+          continue;
+        }
         const cat = classifyText(text);
         out.push({
           id: "tg-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
@@ -525,7 +560,8 @@ async function ingestInner(env) {
   const adsbIds = new Set(adsb.map(e => e.id));
   store.events = store.events.filter(e => e.src !== "adsb" || !adsbIds.has(e.id));  // movers get fresh positions
   TG_DEBUG = [];
-  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store), Promise.all(RSS_FEEDS.map(fetchRss))]);
+  const feedOut = [];
+  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(RSS_FEEDS.map(f => fetchRss(f, feedOut)))]);
   const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
@@ -536,6 +572,10 @@ async function ingestInner(env) {
       if (!store.alerts.some(a => a.key === key)) store.alerts.unshift({ key, type: "quake", place: e.place, t: nowStamp(), text: `רעידת אדמה בעוצמה ${e.mag} — ${e.place}` });
     }
   }
+
+  const seenF = new Set((store.feed || []).map(f => f.id));
+  store.feed = (store.feed || []).concat(feedOut.filter(f => !seenF.has(f.id)));
+  store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
 
   const geocoded = await geocodePending(store);
 
@@ -606,7 +646,7 @@ function buildReport(store) {
   if (kin.length) lines.push(`${kin.length} אירועים קינטיים: ${byKind.strike || 0} תקיפות/שיגורים, ${byKind.intercept || 0} יירוטים, ${byKind.impact || 0} התקלות, ${byKind.fight || 0} לחימה, ${byKind.mass || 0} אלימות המונית. מבוסס דיווחים — לא אישור רשמי.`);
   lines.push(`מקורות איסוף: GDELT (${srcCount.gdelt || 0} אירועים), חדל\"פים תרמיים NASA FIRMS (${srcCount.firms || 0}), רעידות אדמה USGS (${srcCount.usgs || 0}), תעופה צבאית ADS-B (${srcCount.adsb || 0}), כותרות חיות ממוקמות (${srcCount.rss || 0}).`);
   lines.push(`כיסוי וכנות: שכבת התעופה (ADS-B) מושבתת כרגע — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; היא תופעל אוטומטית אם הגישה תיפתח. AIS לספינות אינו זמין חינם ללא מפתח ולכן אינו מוצג. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar) — שכבת NASA GIBS היא רזולוציה נמוכה ולא טקטית.`);
-  lines.push(`דיוק מיקום: כל ${evs.length} האירועים ממוקמים ברמת עיר/אתר בלבד — אירועים ללא מיקום פיזי מזוהה לא נכנסים ללוח.`);
+  lines.push(`דיוק מיקום: ${evs.length} האירועים על המפה ממוקמים ברמת עיר/אתר. דיווחים ללא מיקום מזוהה אינם מושמטים — הם מופיעים בזרם המבזקים עם תווית אזור ורמת אימות.`);
   if (store.alerts.length) lines.push(`${store.alerts.filter(a => a.t >= cutoff).length} איתותי הסלמה הופעלו במהלך היום האחרון.`);
 
   return {
@@ -625,7 +665,7 @@ export default {
       const store = await loadStore(env);
       if (Date.now() - stampMs(store.updated) > 4 * 60 * 1000) ctx.waitUntil(ingest(env));   // stale-driven refresh: any open dashboard keeps data flowing even if CF cron is not delivered
       
-      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS });
+      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS, feed: (store.feed || []).slice(0, 80) });
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);

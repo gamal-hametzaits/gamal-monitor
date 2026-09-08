@@ -30,6 +30,18 @@ aside{border-inline-end:1px solid var(--line);display:flex;flex-direction:column
 .panel-h{padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .panel-h .tag{font-size:11px;color:var(--red);font-family:"IBM Plex Mono",monospace}
 #alerts{max-height:260px;overflow-y:auto;border-bottom:1px solid var(--line)}
+#livefeed{max-height:340px;overflow-y:auto;border-bottom:1px solid var(--line)}
+.lf{padding:10px 16px;border-bottom:1px solid var(--line);border-inline-start:3px solid var(--blue);font-size:13px;line-height:1.45}
+.lf.crit{border-inline-start-color:var(--red)}
+.lf a{color:var(--txt);text-decoration:none}
+.lf a:hover{text-decoration:underline}
+.lf .badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;font-size:11px;color:var(--dim);align-items:center}
+.lf .b{border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.lf .b.region{color:var(--blue)}
+.lf .b.unv{color:var(--red);border-color:var(--red)}
+.lf .b.ver{color:#2ECC71}
+.lf .b.noloc{color:#F5D90A}
+.lf .t{color:var(--dim);font-size:11px}
 .alert{padding:11px 16px;border-bottom:1px solid var(--line);border-inline-start:3px solid var(--red);font-size:13px}
 .alert .t{color:var(--dim);font-size:11px;margin-top:3px}
 .alert.empty,.ev.empty{border:none;color:var(--dim)}
@@ -75,7 +87,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <body>
 <header>
   <div class="brand">הגמל <em>·</em> מוניטור גיאופוליטי</div>
-  <div class="sub">מזרח תיכון · נתוני GDELT בעיכוב ~15 דקות</div>
+  <div class="sub">מזרח תיכון · מבזקים חיים, מפה ממוקמת וסיקור מאוגד · רענון כל 5 דקות</div>
   <div class="live"><span class="dot"></span> LIVE <span class="mono" id="updated">—</span></div>
 </header>
 
@@ -83,11 +95,13 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 
 <main>
   <aside>
+    <div class="panel-h">⚡ מבזקים ועדכונים חיים <span class="tag" id="lfcount"></span></div>
+    <div id="livefeed"></div>
     <div class="panel-h">⚠ איתותי הסלמה <span class="tag" id="alertcount"></span></div>
     <div id="alerts"></div>
     <div class="panel-h">🎯 תקיפות ויירוטים <span class="tag" id="kcount"></span></div>
     <div id="kinetic" style="max-height:300px;overflow-y:auto;border-bottom:1px solid var(--line)"></div>
-    <div class="panel-h">זרם אירועים אחרונים</div>
+    <div class="panel-h">אירועים ממופים · כולל סיקור מאוגד (GDELT)</div>
     <div id="feed"></div>
     <div class="panel-h">📡 ערוצי טלגרם ציבוריים <span class="tag" id="tgcount"></span></div>
     <div id="tgadmin" style="padding:8px 10px;font-size:12px">
@@ -96,7 +110,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
         <button onclick="tgAdd()" style="background:var(--blue);border:0;color:#fff;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px">הוסף</button>
       </div>
       <div id="tglist"></div>
-      <div style="color:var(--dim);font-size:11px;margin-top:4px">טלגרם · ערוץ ציבורי · לא מאומת — נסרק ללא מפתח, פריט נכנס רק עם מיקום פיזי מזוהה.</div>
+      <div style="color:var(--dim);font-size:11px;margin-top:4px">טלגרם · ערוץ ציבורי · לא מאומת — נסרק ללא מפתח. עם מיקום מזוהה → למפה; בלי מיקום אבל אזורי/קריטי → לזרם המבזקים עם אזהרת "לא מאומת".</div>
     </div>
   </aside>
   <div id="mapwrap">
@@ -124,7 +138,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 </div></div>
 
 <footer>
-  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). כל פריט מחובר למיקום פיזי ברמת עיר/אתר — פריט ללא מיקום לא נכנס ללוח.<br>
+  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). היררכיית פריטים: דיווחים עם מיקום מזוהה ברמת עיר/אתר מופיעים על המפה; דיווחים ממקור חדשותי ללא מיקום נשמרים בזרם המבזקים עם תווית אזור; דיווחים משמעותיים ללא מיקום מופיעים גם אם לא אומתו — עם אזהרת "לא מאומת" בולטת. אין ניפוי לפי מיקום בלבד.<br>
 מה שאין, בכנות: שכבת התעופה הצבאית (ADS-B) מושבתת — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; תופעל אוטומטית אם תיפתח. תנועת ספינות (AIS) גלובלית חינמית ללא מפתח לא קיימת — לא מוצגת במקום לזייף. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar); שכבת ה-NASA היומית היא רזולוציה נמוכה בלבד ולא טקטית. התראות צבע אדום: אין מקור רשמי נגיש ללא חסימה גיאוגרפית — לא מוצג.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
   שכבת מצלמות: רק מצלמות ציבוריות פתוחות ללא מפתח שאומתו כעובדות — הכותל (Aish/EarthCam), חופי תל אביב (BeachCam/WebcamTaxi), פירמידות גיזה (SkylineWebcams). הסמנים מקשרים לעמוד השידור החיצוני; אין סנפשוטים מוטבעים כי הזרמים חסומי CORS להטמעה. לא נכללו (בכנות): מצלמות IBB איסטנבול (זרמי HLS חסומי CORS והפורטל לא נגיש), מצלמת בורג' ח'ליפה דובאי (העמוד הוסר), וספקי API במפתח כמו Windy/webcams.travel.
@@ -204,6 +218,24 @@ function renderFeed(){
   }).join('');
 }
 
+function renderLivefeed(){
+  const el = document.getElementById('livefeed');
+  const items = (DATA.feed||[]).filter(f=>!HIDE_UNV || f.tier!=='unverified');
+  document.getElementById('lfcount').textContent = items.length ? items.length+' דיווחים' : '';
+  if (!items.length){ el.innerHTML = '<div class="alert empty">אין דיווחים לא ממוקמים כרגע</div>'; return; }
+  el.innerHTML = items.slice(0,40).map(f=>{
+    const title = f.url ? `<a href="${f.url}" target="_blank" rel="noopener">${f.title}</a>` : f.title;
+    const badges = [];
+    if (f.region) badges.push(`<span class="b region">${f.region}</span>`);
+    badges.push(f.tier==='unverified' ? '<span class="b unv">⚠ לא מאומת</span>' : '<span class="b ver">מקור חדשותי</span>');
+    badges.push('<span class="b noloc">ללא מיקום מדויק</span>');
+    return `<div class="lf${f.critical?' crit':''}">
+      <div>${f.critical?'⚡ ':''}${title}</div>
+      <div class="badges"><span class="t mono">${fmtT(f.d)}</span><span class="t">${f.a1}</span>${badges.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderMap(){
   for (const c of Object.keys(layerGroups)) layerGroups[c].clearLayers();
   let shown=0, hidden=0;
@@ -243,7 +275,7 @@ function renderFilters(){
   }).join('') + `<button class="fbtn ${HIDE_UNV?'active':''}" data-c="__unv" title="הסתרת דיווחי טלגרם לא מאומתים">ללא לא־מאומתים</button>`;
   el.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>{
     const c=b.dataset.c;
-    if (c==='__unv'){ HIDE_UNV=!HIDE_UNV; renderFilters(); renderKinetic(); renderFeed(); renderMap(); return; }
+    if (c==='__unv'){ HIDE_UNV=!HIDE_UNV; renderFilters(); renderKinetic(); renderFeed(); renderLivefeed(); renderMap(); return; }
     if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
     else { activeCats.has(c)?activeCats.delete(c):activeCats.add(c); }
     renderFilters(); renderLegend(); renderMap();
@@ -292,7 +324,7 @@ function renderCams(){
 async function load(){
   const r = await fetch('/api/data'); DATA = await r.json();
   document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated)+' · רענון אוטומטי כל דקה';
-  renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
+  renderStats(); renderAlerts(); renderLivefeed(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
 }
 
 document.getElementById('reportbtn').onclick = async ()=>{
