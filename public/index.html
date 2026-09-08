@@ -93,6 +93,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
     <button id="reportbtn">📄 דוח מצב</button>
     <div id="map"></div>
     <div class="legend" id="legend"><div style="font-weight:800;margin-bottom:4px">קטגוריות</div></div>
+    <div id="precnote" style="position:absolute;bottom:14px;inset-inline-end:14px;z-index:500;background:rgba(11,11,11,.88);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--dim)"></div>
   </div>
 </main>
 
@@ -119,7 +120,8 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const CATCOL = {conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
-let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null;
+let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null, preciseOnly = true;
+const PREC = {city:{he:'עיר',w:1.5,op:.5},adm1:{he:'מחוז',w:1.2,op:.3},country:{he:'~מדינה',w:1,op:.12},unknown:{he:'משוער',w:1,op:.12}};
 
 function fmtT(s){ if(!s||s.length<14) return '—'; return s.slice(8,10)+':'+s.slice(10,12)+' · '+s.slice(6,8)+'/'+s.slice(4,6); }
 
@@ -131,7 +133,8 @@ for (const c of Object.keys(CATCOL)) layerGroups[c] = L.layerGroup().addTo(map);
 
 function renderStats(){
   const byCat = {}; for (const e of DATA.events) byCat[e.cat]=(byCat[e.cat]||0)+1;
-  let h = `<div class="stat"><div class="num mono">${DATA.events.length}</div><div class="lbl">אירועים · 26 שעות</div></div>`;
+  const pc={}; for (const e of DATA.events) pc[e.prec]=(pc[e.prec]||0)+1;
+  let h = `<div class="stat"><div class="num mono">${DATA.events.length}</div><div class="lbl">אירועים · 26 שעות · ${pc.city||0} ברמת עיר</div></div>`;
   h += `<div class="stat"><div class="num mono" style="color:var(--red)">${DATA.alerts.length}</div><div class="lbl">איתותי הסלמה</div></div>`;
   for (const [c,meta] of Object.entries(DATA.cats)) h += `<div class="stat"><div class="num mono" style="color:${meta.color}">${byCat[c]||0}</div><div class="lbl">${meta.he}</div></div>`;
   document.getElementById('stats').innerHTML = h;
@@ -149,7 +152,7 @@ function renderFeed(){
   el.innerHTML = DATA.events.slice(0,80).map(e=>{
     const col = CATCOL[e.cat]||'#8A8A8A';
     return `<div class="ev" style="border-inline-start-color:${col}">
-      <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${e.place||e.ctry||'—'}</span><span class="when mono">${fmtT(e.d)}</span></div>
+      <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${(e.place||e.ctry||'—').split(',').slice(0,2).join(',')}</span>${(e.prec==='country'||e.prec==='unknown')?'<span style="color:var(--dim);font-size:11px" title="מיקום ברמת מדינה בלבד">≈</span>':''}<span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')||''}</div>
       <div class="meta"><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
@@ -158,14 +161,22 @@ function renderFeed(){
 
 function renderMap(){
   for (const c of Object.keys(layerGroups)) layerGroups[c].clearLayers();
+  let shown=0, hidden=0;
   for (const e of DATA.events){
     if (!activeCats.has(e.cat)) continue;
+    if (e.lat==null||e.lon==null) { hidden++; continue; }
+    const pr = PREC[e.prec]||PREC.country;
+    if (preciseOnly && e.prec==='country') { hidden++; continue; }
     const col = CATCOL[e.cat]||'#8A8A8A';
     const r = Math.min(4 + Math.sqrt(e.ment||1)*1.6, 16);
-    const m = L.circleMarker([e.lat,e.lon],{radius:r,color:col,weight:1.5,fillColor:col,fillOpacity:.45});
-    m.bindPopup(`<div dir="rtl" style="font-family:Heebo"><b>${e.place||''}</b><br>${DATA.cats[e.cat].he} · חומרה ${e.gold} · ${e.ment} אזכורים<br><span style="color:#888;font-size:12px">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</span><br>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">למקור ↗</a>`:''}</div>`);
+    const hollow = e.prec==='country'||e.prec==='unknown';
+    const m = L.circleMarker([e.lat,e.lon],{radius:r,color:hollow?'#8A8A8A':col,weight:hollow?1:pr.w,fillColor:col,fillOpacity:hollow?0:pr.op,dashArray:hollow?'3 3':null});
+    m.bindPopup(`<div dir="rtl" style="font-family:Heebo"><b>${e.place||''}</b> <span style="color:#888;font-size:11px">(דיוק: ${pr.he}${e.geo==='nominatim'?', גיאוקוד OSM':''})</span><br>${DATA.cats[e.cat].he} · חומרה ${e.gold} · ${e.ment} אזכורים<br><span style="color:#888;font-size:12px">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</span><br>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">למקור ↗</a>`:''}</div>`);
     m.addTo(layerGroups[e.cat]);
+    shown++;
   }
+  map._precNote = `${shown} מוצגים · ${hidden} מוסתרים (ללא מיקום מדויק)`;
+  const n = document.getElementById('precnote'); if (n) n.textContent = map._precNote;
 }
 
 function renderLegend(){
@@ -181,14 +192,15 @@ function renderLegend(){
 
 function renderFilters(){
   const el = document.getElementById('filters');
-  el.innerHTML = ['all',...Object.keys(CATCOL)].map(c=>{
+  el.innerHTML = `<button class="fbtn ${preciseOnly?'active':''}" data-c="__prec">מדויק בלבד</button>` + ['all',...Object.keys(CATCOL)].map(c=>{
     const lbl = c==='all'?'הכל':DATA.cats[c].he;
     const act = c==='all' ? activeCats.size===6 : activeCats.has(c);
     return `<button class="fbtn ${act?'active':''}" data-c="${c}">${lbl}</button>`;
   }).join('');
   el.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>{
     const c=b.dataset.c;
-    if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
+    if(c==='__prec'){ preciseOnly=!preciseOnly; }
+    else if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
     else { activeCats.has(c)?activeCats.delete(c):activeCats.add(c); }
     renderFilters(); renderLegend(); renderMap();
   });
