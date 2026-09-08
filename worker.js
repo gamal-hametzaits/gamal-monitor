@@ -122,6 +122,8 @@ const RSS_FEEDS = [
   { url: "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx", name: "Jerusalem Post", me: true },
   { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false },
+  { url: "https://www.middleeasteye.net/rss", name: "Middle East Eye", me: true },
+  { url: "https://www.arabnews.com/rss.xml", name: "Arab News", me: true },
 ];
 
 const CAMERAS = [
@@ -461,7 +463,7 @@ function shortPlace(p) {
 
 
 const TG_LABEL_SRC = "telegram";
-const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring"];
+const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates"];
 const TG_PER_RUN = 2;
 let TG_DEBUG = [];
 
@@ -525,10 +527,12 @@ async function ingestInner(env) {
   const line = txt.split("\n").find(l => l.includes(".export.CSV.zip"));
   if (!line) return { ok: false, reason: "no export line" };
   const url = line.trim().split(/\s+/)[2];
-  let batch = [];
+  let batch = [], zipNote = null;
   if (url !== store.lastfile) {
     const zr = await fetch(url.replace("http://", "https://"));
-    if (!zr.ok) return { ok: false, reason: "zip http " + zr.status };
+    if (!zr.ok) {
+      zipNote = "zip http " + zr.status;   // GDELT lists files before upload completes; retry next cron run
+    } else {
     const buf = new Uint8Array(await zr.arrayBuffer());
     const files = unzipSync(buf);
     const name = Object.keys(files)[0];
@@ -543,6 +547,7 @@ async function ingestInner(env) {
     store.windows.push({ t: fileTs, n: batch.length, cats });
     store.windows = store.windows.slice(-WINDOW_KEEP);
     store.lastfile = url;
+    }
   }
 
   ADSB_DEBUG = [];
@@ -582,7 +587,7 @@ async function ingestInner(env) {
   for (const e of store.events) precCount[e.prec] = (precCount[e.prec] || 0) + 1;
   const srcs = {};
   for (const e of store.events) srcs[e.src || "gdelt"] = (srcs[e.src || "gdelt"] || 0) + 1;
-  return { ok: true, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, tgDebug: TG_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
+  return { ok: true, zipNote, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, tgDebug: TG_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
 }
 
 function fmtT(stamp) {

@@ -133,6 +133,9 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+let HIDE_UNV = false;
+const visEvents = () => HIDE_UNV ? DATA.events.filter(e=>e.src!=='telegram') : DATA.events;
+const SRC_TIER = {adsb:'חיישן ADS-B · שידור חי',usgs:'חיישן USGS · מאומת מכונה',firms:'חיישן NASA FIRMS · מאומת מכונה',rss:'כותרת חדשותית · לא אישור רשמי',gdelt:'תקשורת מצטברת (GDELT) · לא אישור רשמי',telegram:'טלגרם · ערוץ ציבורי · לא מאומת'};
 const CATCOL = {military_air:'#00E5FF',natural:'#B06BFF',conflict:'#E01F2E',posture:'#FF7A1A',protest:'#F5D90A',economy:'#2ECC71',diplomacy:'#3E9BFF',other:'#8A8A8A'};
 let map, layerGroups = {}, activeCats = new Set(Object.keys(CATCOL)), DATA = null;
 const PREC = {city:{he:'עיר',w:1.5,op:.5},adm1:{he:'מחוז',w:1.2,op:.3},country:{he:'~מדינה',w:1,op:.12},unknown:{he:'משוער',w:1,op:.12}};
@@ -176,7 +179,7 @@ function renderAlerts(){
 const KINDCOL = {strike:'#E01F2E',intercept:'#3E9BFF',launch:'#FF7A1A',impact:'#F5D90A',fight:'#E01F2E',mass:'#E01F2E'};
 function renderKinetic(){
   const el = document.getElementById('kinetic');
-  const kin = DATA.events.filter(e=>e.etype).slice(0,40);
+  const kin = visEvents().filter(e=>e.etype).slice(0,40);
   document.getElementById('kcount').textContent = kin.length ? kin.length+' ב-26 שעות' : '';
   if (!kin.length){ el.innerHTML = '<div class="ev empty">אין אירועים קינטיים מתועדים כרגע</div>'; return; }
   el.innerHTML = kin.map(e=>{
@@ -184,19 +187,19 @@ function renderKinetic(){
     return `<div class="ev" style="border-inline-start-color:${col}">
       <div class="head"><span class="chip" style="background:${col}">${e.etype.he}</span><span class="place">${(e.place||'—').split(',').slice(0,2).join(',')}</span><span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')}</div>
-      <div class="meta"><span style="color:#666">${e.src==='telegram'?'טלגרם · ערוץ ציבורי · לא מאומת':e.src==='rss'?'כותרת חדשותית':'דיווח GDELT'} · לא אישור רשמי</span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+      <div class="meta"><span style="color:#666">${SRC_TIER[e.src]||SRC_TIER.gdelt}</span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
   }).join('');
 }
 
 function renderFeed(){
   const el = document.getElementById('feed');
-  el.innerHTML = DATA.events.slice(0,80).map(e=>{
+  el.innerHTML = visEvents().slice(0,80).map(e=>{
     const col = CATCOL[e.cat]||'#8A8A8A';
     return `<div class="ev" style="border-inline-start-color:${col}">
       <div class="head"><span class="chip" style="background:${col}">${DATA.cats[e.cat].he}</span><span class="place">${(e.place||e.ctry||'—').split(',').slice(0,2).join(',')}</span>${(e.prec==='country'||e.prec==='unknown')?'<span style="color:var(--dim);font-size:11px" title="מיקום ברמת מדינה בלבד">≈</span>':''}<span class="when mono">${fmtT(e.d)}</span></div>
       <div class="actors">${[e.a1,e.a2].filter(Boolean).join(' ←→ ')||''}</div>
-      <div class="meta"><span style="color:#666">${({gdelt:'GDELT',usgs:'USGS',rss:'RSS',firms:'NASA FIRMS',telegram:'טלגרם · לא מאומת'})[e.src]||'GDELT'}</span><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
+      <div class="meta"><span style="color:#666">${SRC_TIER[e.src]||SRC_TIER.gdelt}</span><span>חומרה <b class="mono">${e.gold}</b></span><span>אזכורים <b class="mono">${e.ment}</b></span><span>טון <b class="mono">${e.tone}</b></span>${e.url?`<a href="${e.url}" target="_blank" rel="noopener">מקור ↗</a>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -204,7 +207,7 @@ function renderFeed(){
 function renderMap(){
   for (const c of Object.keys(layerGroups)) layerGroups[c].clearLayers();
   let shown=0, hidden=0;
-  for (const e of DATA.events){
+  for (const e of visEvents()){
     if (!activeCats.has(e.cat)) continue;
     if (e.lat==null||e.lon==null) { hidden++; continue; }
     const pr = PREC[e.prec]||PREC.country;
@@ -237,9 +240,10 @@ function renderFilters(){
     const lbl = c==='all'?'הכל':DATA.cats[c].he;
     const act = c==='all' ? activeCats.size===6 : activeCats.has(c);
     return `<button class="fbtn ${act?'active':''}" data-c="${c}">${lbl}</button>`;
-  }).join('');
+  }).join('') + `<button class="fbtn ${HIDE_UNV?'active':''}" data-c="__unv" title="הסתרת דיווחי טלגרם לא מאומתים">ללא לא־מאומתים</button>`;
   el.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>{
     const c=b.dataset.c;
+    if (c==='__unv'){ HIDE_UNV=!HIDE_UNV; renderFilters(); renderKinetic(); renderFeed(); renderMap(); return; }
     if(c==='all'){ activeCats = new Set(Object.keys(CATCOL)); }
     else { activeCats.has(c)?activeCats.delete(c):activeCats.add(c); }
     renderFilters(); renderLegend(); renderMap();
@@ -287,7 +291,7 @@ function renderCams(){
 
 async function load(){
   const r = await fetch('/api/data'); DATA = await r.json();
-  document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
+  document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated)+' · רענון אוטומטי כל דקה';
   renderStats(); renderAlerts(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
 }
 
@@ -303,7 +307,8 @@ document.getElementById('reportbtn').onclick = async ()=>{
 document.getElementById('close').onclick = ()=> document.getElementById('modal').style.display='none';
 document.getElementById('modal').onclick = e=>{ if(e.target.id==='modal') e.target.style.display='none'; };
 
-load(); setInterval(load, 60000);
+load();
+setInterval(load, 60000);
 </script>
 </body>
 </html>
