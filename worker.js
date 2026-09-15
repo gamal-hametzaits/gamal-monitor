@@ -462,6 +462,8 @@ async function sha256hex(s) {
   return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, "0")).join("");
 }
 const BRK_CRIT_ISR = /צבע אדום|אזעקה|אזעקות|חדירת מחבל|יירוט|יירט|נפילה|פגיעה ישירה|מטח|red alert|sirens?|rocket alert|infiltrat|direct hit|intercept|ballistic/iu;
+const NON_ME_RE = /אוקראינה|רוסיה|מוסקבה|קייב|ukraine|russia|moscow|kyiv|kremlin|sudan|סודאן/iu;
+const BRK_NOISE_RE = /sue|lawsuit|libel|תביעה|תבע|interview|opinion|obituary|הספד|בריאות|מזג אוויר/iu;
 const ISR_TERMS = /ישראל|תל אביב|ירושלים|חיפה|באר שבע|אילת|הצפון|הדרום|גליל|גולן|israel|tel aviv|jerusalem|haifa|golan|galilee|eer\u0027?sheva/iu;
 
 function brkStem(t) {
@@ -482,8 +484,11 @@ function detectBreaking(store, freshEvents, freshFeed) {
     if (alerted.has(item.id)) return;
     const title = item.title || "";
     if (!CRITICAL_RE.test(title) && !item.critical) return;   // breaking lane: attack-type reports only
+    if (NON_ME_RE.test(title) && !ME_TERMS.test(title)) return;   // other theaters (Ukraine/Russia etc) without an ME angle are noise here
+    if (BRK_NOISE_RE.test(title)) return;                          // lawsuits, interviews, weather - not breaking security events
     const isr = ISR_TERMS.test(title);
-    const sev = (BRK_CRIT_ISR.test(title) || (isr && (item.etype || item.critical))) ? "critical" : "high";
+    const kin = item.etype && item.etype.kind;
+    const sev = (BRK_CRIT_ISR.test(title) || (isr && (kin === "launch" || kin === "intercept" || kin === "impact"))) ? "critical" : "high";
     const stem = brkStem(title);
     if (stem && store.alertStems[stem]) {
       if (sev !== "critical") return;                          // same story already alerted
@@ -802,6 +807,14 @@ export default {
       store.ntfyTopic = topic;
       await env.MONITOR_KV.put("store", JSON.stringify(store));
       return json({ ok: true, set: true });
+    }
+    if (url.pathname === "/api/brk-clear") {
+      const k = url.searchParams.get("k") || "";
+      if (!k || (await sha256hex(k)) !== NTFY_SETUP_HASH) return json({ ok: false, reason: "bad key" }, 403);
+      const store = await loadStore(env);
+      store.breaking = []; store.alertedIds = []; store.alertStems = {};
+      await env.MONITOR_KV.put("store", JSON.stringify(store));
+      return json({ ok: true, cleared: true });
     }
     if (url.pathname === "/api/alert-test") {
       const st0 = await loadStore(env);
