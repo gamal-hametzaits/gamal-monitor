@@ -502,14 +502,14 @@ function detectBreaking(store, freshEvents, freshFeed) {
     }
     const et = item.etype || null;
     out.push({ id: "brk-" + item.id, t: nowStamp(), sev, title: title.slice(0, 220),
-      kind: item.kind || (item.src === TG_LABEL_SRC ? "live" : "flash"),
+      srcKind: item.srcKind || (item.src === TG_LABEL_SRC ? "live" : "flash"),
       src: item.a1 || "", url: item.url || "", region: item.region || regionOf(title),
       tier: item.tier || (item.src === TG_LABEL_SRC ? "unverified" : "verified"),
       kind: et ? et.kind : "", lat: lat != null ? lat : undefined, lon: lon != null ? lon : undefined });
     alerted.add(item.id);
     if (stem) store.alertStems[stem] = nowStamp();
   }
-  for (const e of freshEvents) consider({ id: e.id, title: (e.place || "").slice(0, 200), a1: e.a1, url: e.url, src: e.src, etype: e.etype, tier: e.src === TG_LABEL_SRC ? "unverified" : "verified", critical: !!e.etype, kind: e.kind }, e.lat, e.lon);
+  for (const e of freshEvents) consider({ id: e.id, title: (e.place || "").slice(0, 200), a1: e.a1, url: e.url, src: e.src, etype: e.etype, tier: e.src === TG_LABEL_SRC ? "unverified" : "verified", critical: !!e.etype, srcKind: e.kind }, e.lat, e.lon);
   for (const f of freshFeed) consider(f, null, null);
   if (!out.length) return [];
   store.alertedIds = Array.from(alerted).slice(-600);

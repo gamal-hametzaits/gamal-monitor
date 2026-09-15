@@ -208,7 +208,7 @@ function renderBreaking(){
     const crit = a.sev==='critical';
     return `<div class="brk ${crit?'crit':'high'}">
       <div>${crit?'🚨':'⚠️'} ${a.url?`<a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>`:a.title}</div>
-      <div class="badges"><span class="t mono">${fmtT(a.t)}</span>${a.kind==='live'?'<span class="b" style="color:#4dd0e1;border-color:#2a4a52">📡 לייב</span>':a.kind==='article'?'<span class="b" style="color:#aaa">📰 כתבה</span>':'<span class="b" style="color:#ffd54f;border-color:#5a4a1e">⚡ מבזק</span>'}<span class="t">${a.src||''}</span>${a.region?`<span class="b region">${a.region}</span>`:''}${a.tier==='unverified'?'<span class="b unv">⚠ לא מאומת</span>':'<span class="b ver">מקור חדשותי</span>'}${a.lat==null?'<span class="b noloc">ללא מיקום מדויק</span>':''}</div>
+      <div class="badges"><span class="t mono">${fmtT(a.t)}</span>${a.srcKind==='live'?'<span class="b" style="color:#4dd0e1;border-color:#2a4a52">📡 לייב</span>':a.srcKind==='article'?'<span class="b" style="color:#aaa">📰 כתבה</span>':'<span class="b" style="color:#ffd54f;border-color:#5a4a1e">⚡ מבזק</span>'}<span class="t">${a.src||''}</span>${a.region?`<span class="b region">${a.region}</span>`:''}${a.tier==='unverified'?'<span class="b unv">⚠ לא מאומת</span>':'<span class="b ver">מקור חדשותי</span>'}${a.lat==null?'<span class="b noloc">ללא מיקום מדויק</span>':''}</div>
     </div>`;
   }).join('');
   brkLayer.clearLayers();
