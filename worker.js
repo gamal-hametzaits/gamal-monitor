@@ -453,6 +453,103 @@ function detectAlerts(batch, store) {
   return fresh.filter(a => !recentKeys.has(a.key)).map(a => ({ ...a, t: nowStamp() }));
 }
 
+// ---------- breaking alert bot ----------
+const MAX_BREAKING = 50;
+const BRK_CRIT_ISR = /צבע אדום|אזעקה|אזעקות|חדירת מחבל|יירוט|יירט|נפילה|פגיעה ישירה|מטח|red alert|sirens?|rocket alert|infiltrat|direct hit|intercept|ballistic/iu;
+const ISR_TERMS = /ישראל|תל אביב|ירושלים|חיפה|באר שבע|אילת|הצפון|הדרום|גליל|גולן|israel|tel aviv|jerusalem|haifa|golan|galilee|eer\u0027?sheva/iu;
+
+function brkStem(t) {
+  return (t || "").toLowerCase()
+    .replace(/^[\s\-\u2013\u2014:]*(\u05d3\u05d9\u05d5\u05d5\u05d7|\u05de\u05d1\u05d6\u05e7|\u05e2\u05db\u05e9\u05d9\u05d5|breaking|urgent|report)[:\s\-\u2013\u2014]*/i, "")
+    .replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim()
+    .split(" ").slice(0, 7).join(" ");
+}
+
+function detectBreaking(store, freshEvents, freshFeed) {
+  const out = [];
+  store.alertedIds = Array.isArray(store.alertedIds) ? store.alertedIds : [];
+  store.alertStems = store.alertStems && typeof store.alertStems === "object" ? store.alertStems : {};
+  const alerted = new Set(store.alertedIds);
+  const stemCut = nowStampMinus(3 * 3600 * 1000);
+  for (const k of Object.keys(store.alertStems)) if (store.alertStems[k] < stemCut) delete store.alertStems[k];
+  function consider(item, lat, lon) {
+    if (alerted.has(item.id)) return;
+    const title = item.title || "";
+    if (!CRITICAL_RE.test(title) && !item.critical) return;   // breaking lane: attack-type reports only
+    const isr = ISR_TERMS.test(title);
+    const sev = (BRK_CRIT_ISR.test(title) || (isr && (item.etype || item.critical))) ? "critical" : "high";
+    const stem = brkStem(title);
+    if (stem && store.alertStems[stem]) {
+      if (sev !== "critical") return;                          // same story already alerted
+      if (store.alertStems[stem] >= nowStampMinus(30 * 60 * 1000)) return;  // critical re-alert at most every 30 min
+    }
+    const et = item.etype || null;
+    out.push({ id: "brk-" + item.id, t: nowStamp(), sev, title: title.slice(0, 220),
+      src: item.a1 || "", url: item.url || "", region: item.region || regionOf(title),
+      tier: item.tier || (item.src === TG_LABEL_SRC ? "unverified" : "verified"),
+      kind: et ? et.kind : "", lat: lat != null ? lat : undefined, lon: lon != null ? lon : undefined });
+    alerted.add(item.id);
+    if (stem) store.alertStems[stem] = nowStamp();
+  }
+  for (const e of freshEvents) consider({ id: e.id, title: (e.place || "").slice(0, 200), a1: e.a1, url: e.url, src: e.src, etype: e.etype, tier: e.src === TG_LABEL_SRC ? "unverified" : "verified", critical: !!e.etype }, e.lat, e.lon);
+  for (const f of freshFeed) consider(f, null, null);
+  if (!out.length) return [];
+  store.alertedIds = Array.from(alerted).slice(-600);
+  store.breaking = out.concat(store.breaking || []).slice(0, MAX_BREAKING);
+  return out;
+}
+
+async function pushBreaking(env, alerts) {
+  const topic = env.NTFY_TOPIC;
+  if (!topic) return { sent: 0, reason: "NTFY_TOPIC not set" };
+  const crit = alerts.some(a => a.sev === "critical");
+  const list = alerts.slice(0, 3);
+  const lines = list.map(a => (a.sev === "critical" ? "\uD83D\uDEA8 " : "\u26A0\uFE0F ") + a.title + (a.region ? " \u00B7 " + a.region : "") + (a.tier === "unverified" ? " (\u05DC\u05D0 \u05DE\u05D0\u05D5\u05DE\u05EA)" : ""));
+  if (alerts.length > list.length) lines.push("\u05D5\u05E2\u05D5\u05D3 " + (alerts.length - list.length) + " \u05D3\u05D9\u05D5\u05D5\u05D7\u05D9\u05DD \u2014 \u05E4\u05EA\u05D7 \u05D0\u05EA \u05D4\u05DE\u05D5\u05E0\u05D9\u05D8\u05D5\u05E8");
+  try {
+    const r = await fetch("https://ntfy.sh/" + topic, {
+      method: "POST",
+      headers: {
+        "Title": crit ? "\uD83D\uDEA8 \u05DE\u05D1\u05D6\u05E7 \u05D1\u05D9\u05D8\u05D7\u05D5\u05E0\u05D9 \u00B7 \u05DE\u05D6\u05E8\u05D7 \u05EA\u05D9\u05DB\u05D5\u05DF" : "\u05D3\u05D9\u05D5\u05D5\u05D7 \u05D1\u05D9\u05D8\u05D7\u05D5\u05E0\u05D9 \u05D7\u05D3\u05E9",
+        "Priority": crit ? "5" : "4",
+        "Tags": crit ? "rotating_light" : "warning",
+        "Click": "https://gamal-monitor.gamal-hametzaits.workers.dev/",
+      },
+      body: lines.join("\n"),
+    });
+    return { sent: r.ok ? 1 : 0, status: r.status };
+  } catch (e) { return { sent: 0, error: String(e && e.message || e).slice(0, 120) }; }
+}
+
+async function ingestLite(env) {
+  try {
+    const store = await loadStore(env);
+    const feedOut = [];
+    const slot = Math.floor(Date.now() / 60000);
+    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(RSS_FEEDS.map(f => fetchRss(f, feedOut)))]);
+    const extras = tgE.concat(...rssArr);
+    const seen2 = new Set(store.events.map(e => e.id));
+    const freshExtras = extras.filter(e => !seen2.has(e.id));
+    const seenF = new Set((store.feed || []).map(f => f.id));
+    const freshFeed = feedOut.filter(f => !seenF.has(f.id));
+    const newAlerts = detectBreaking(store, freshExtras, freshFeed);
+    let push = { sent: 0 };
+    if (newAlerts.length) push = await pushBreaking(env, newAlerts);
+    store.events = store.events.concat(freshExtras);
+    store.feed = (store.feed || []).concat(freshFeed);
+    store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
+    const heartbeatDue = !store.lastFast || store.lastFast < nowStampMinus(4 * 60 * 1000);
+    if (!freshExtras.length && !freshFeed.length && !newAlerts.length && !heartbeatDue) {
+      return { ok: true, lite: true, added: 0, feedAdded: 0, alerts: 0, pushed: 0, skippedWrite: true };
+    }
+    store.events = store.events.filter(e => e.lat != null && e.prec !== "unknown");
+    store.events = store.events.filter(e => e.d >= nowStampMinus(26 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, MAX_EVENTS);
+    store.lastFast = nowStamp();
+    await env.MONITOR_KV.put("store", JSON.stringify(store));
+    return { ok: true, lite: true, added: freshExtras.length, feedAdded: freshFeed.length, alerts: newAlerts.length, pushed: push.sent, pushInfo: push.status || push.reason || push.error || "", updated: store.lastFast };
+  } catch (e) { return { ok: false, lite: true, error: String(e && e.message || e).slice(0, 200) }; }
+}
+
 function shortPlace(p) {
   if (!p) return "לא ידוע";
   const parts = p.split(",");
@@ -470,14 +567,19 @@ function tgChannels(store) {
   return store.tgChannels;
 }
 
-async function fetchTelegram(store, feedOut) {
+async function fetchTelegram(store, feedOut, slot) {
   const chans = tgChannels(store);
   const out = [];
   if (!chans.length) return out;
-  store.tgCursor = (store.tgCursor || 0) % chans.length;
   const picks = [];
-  for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(store.tgCursor + i) % chans.length]);
-  store.tgCursor = (store.tgCursor + TG_PER_RUN) % chans.length;
+  if (typeof slot === "number") {
+    // stateless rotation: lite lane picks channels by wall-clock minute, no KV write needed
+    for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(slot + i) % chans.length]);
+  } else {
+    store.tgCursor = (store.tgCursor || 0) % chans.length;
+    for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(store.tgCursor + i) % chans.length]);
+    store.tgCursor = (store.tgCursor + TG_PER_RUN) % chans.length;
+  }
   for (const h of picks) {
     try {
       const r = await tfetch("https://t.me/s/" + h, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" } });
@@ -574,8 +676,12 @@ async function ingestInner(env) {
   }
 
   const seenF = new Set((store.feed || []).map(f => f.id));
-  store.feed = (store.feed || []).concat(feedOut.filter(f => !seenF.has(f.id)));
+  const freshFeed = feedOut.filter(f => !seenF.has(f.id));
+  store.feed = (store.feed || []).concat(freshFeed);
   store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
+  const brkNew = detectBreaking(store, freshExtras.filter(e => e.src === "rss" || e.src === TG_LABEL_SRC), freshFeed);
+  let brkPush = null;
+  if (brkNew.length) brkPush = await pushBreaking(env, brkNew);
 
   const geocoded = await geocodePending(store);
 
@@ -598,7 +704,7 @@ async function ingestInner(env) {
   for (const e of store.events) precCount[e.prec] = (precCount[e.prec] || 0) + 1;
   const srcs = {};
   for (const e of store.events) srcs[e.src || "gdelt"] = (srcs[e.src || "gdelt"] || 0) + 1;
-  return { ok: true, zipNote, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, tgDebug: TG_DEBUG, geocoded, prec: precCount, srcs, updated: store.updated };
+  return { ok: true, zipNote, added: batch.length, extras: freshExtras.length, adsb: adsb.length, adsbDebug: ADSB_DEBUG, tgDebug: TG_DEBUG, geocoded, prec: precCount, srcs, brk: brkNew.length, brkPushed: brkPush ? brkPush.sent : 0, updated: store.updated };
 }
 
 function fmtT(stamp) {
@@ -664,8 +770,15 @@ export default {
     if (url.pathname === "/api/data") {
       const store = await loadStore(env);
       if (Date.now() - stampMs(store.updated) > 4 * 60 * 1000) ctx.waitUntil(ingest(env));   // stale-driven refresh: any open dashboard keeps data flowing even if CF cron is not delivered
-      
-      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS, feed: (store.feed || []).slice(0, 80) });
+      if (!store.lastFast || Date.now() - stampMs(store.lastFast) > 3 * 60 * 1000) ctx.waitUntil(ingestLite(env));   // breaking lane fallback if the 1-min external cron misses
+      return json({ updated: store.updated, events: store.events.slice(0, 1200), windows: store.windows, alerts: store.alerts, breaking: (store.breaking || []).slice(0, 40), fast: { last: store.lastFast || null }, cats: CATS, tgChannels: tgChannels(store), cams: CAMERAS, feed: (store.feed || []).slice(0, 80) });
+    }
+    if (url.pathname === "/api/flash") {
+      return json(await ingestLite(env));
+    }
+    if (url.pathname === "/api/alert-test") {
+      const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }]);
+      return json({ ok: true, push: r });
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);
