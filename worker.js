@@ -86,13 +86,18 @@ const CATS = {
 const ECON_CODES = new Set(["164","165","166","172","173","174"]);
 
 const RSS_FEEDS = [
-  { url: "https://www.ynet.co.il/Integration/StoryRss1854.xml", name: "ynet מבזקים", me: true },
-  { url: "https://www.ynet.co.il/Integration/StoryRss2.xml", name: "ynet", me: false },
-  { url: "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx", name: "Jerusalem Post", me: true },
-  { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true },
-  { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false },
-  { url: "https://www.middleeasteye.net/rss", name: "Middle East Eye", me: true },
-  { url: "https://www.arabnews.com/rss.xml", name: "Arab News", me: true },
+  // flash lane: short breaking wires - the core of the bot per Oz's steering
+  { url: "https://www.ynet.co.il/Integration/StoryRss1854.xml", name: "ynet מבזקים", me: true, flash: true },
+  { url: "https://rss.walla.co.il/feed/1?type=main", name: "וואלה מבזקים", me: true, flash: true },
+  { url: "https://www.maariv.co.il/Rss/RssFeedsMivzakiChadashot", name: "מעריב מבזקים", me: true, flash: true },
+  { url: "https://rcs.mako.co.il/rss/news-military.xml", name: "mako צבא וביטחון", me: true, flash: true },
+  { url: "https://www.ynet.co.il/Integration/StoryRss2.xml", name: "ynet", me: false, flash: true },
+  { url: "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx", name: "Jerusalem Post", me: true, flash: true },
+  // article feeds: secondary context/verification only, ranked below live updates
+  { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", name: "BBC מזרח תיכון", me: true, flash: false },
+  { url: "https://www.aljazeera.com/xml/rss/all.xml", name: "אל ג'זירה EN", me: false, flash: false },
+  { url: "https://www.middleeasteye.net/rss", name: "Middle East Eye", me: true, flash: false },
+  { url: "https://www.arabnews.com/rss.xml", name: "Arab News", me: true, flash: false },
 ];
 
 const CAMERAS = [
@@ -287,7 +292,7 @@ async function fetchRss(feed, feedOut) {
         // new policy: no pin -> keep in ranked live feed when regional or critical; domestic noise stays out
         const region = regionOf(title);
         if (region || et || CRITICAL_RE.test(title)) feedOut.push({ id: "rssf-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified",
+          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified", kind: feed.flash ? "flash" : "article",
           region, critical: !!(et || CRITICAL_RE.test(title)) });
         continue;
       }
@@ -295,7 +300,7 @@ async function fetchRss(feed, feedOut) {
         id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
         a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
         tone: 0, place: title, ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
-        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et,
+        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et, kind: feed.flash ? "flash" : "article",
       });
     }
     return out;
@@ -455,6 +460,7 @@ function detectAlerts(batch, store) {
 
 // ---------- breaking alert bot ----------
 const MAX_BREAKING = 50;
+const KINDW = { live: 0, flash: 1, article: 2 };   // Oz steering: live updates and flashes outrank articles
 const NTFY_SETUP_HASH = "f338ffe95c2b51b1d5ace3b80b01687c53de03fcea87c46125605f3c146a0aac";   // sha256 of a one-time setup token held by the operator; hash only, token never committed
 
 async function sha256hex(s) {
@@ -496,17 +502,18 @@ function detectBreaking(store, freshEvents, freshFeed) {
     }
     const et = item.etype || null;
     out.push({ id: "brk-" + item.id, t: nowStamp(), sev, title: title.slice(0, 220),
+      kind: item.kind || (item.src === TG_LABEL_SRC ? "live" : "flash"),
       src: item.a1 || "", url: item.url || "", region: item.region || regionOf(title),
       tier: item.tier || (item.src === TG_LABEL_SRC ? "unverified" : "verified"),
       kind: et ? et.kind : "", lat: lat != null ? lat : undefined, lon: lon != null ? lon : undefined });
     alerted.add(item.id);
     if (stem) store.alertStems[stem] = nowStamp();
   }
-  for (const e of freshEvents) consider({ id: e.id, title: (e.place || "").slice(0, 200), a1: e.a1, url: e.url, src: e.src, etype: e.etype, tier: e.src === TG_LABEL_SRC ? "unverified" : "verified", critical: !!e.etype }, e.lat, e.lon);
+  for (const e of freshEvents) consider({ id: e.id, title: (e.place || "").slice(0, 200), a1: e.a1, url: e.url, src: e.src, etype: e.etype, tier: e.src === TG_LABEL_SRC ? "unverified" : "verified", critical: !!e.etype, kind: e.kind }, e.lat, e.lon);
   for (const f of freshFeed) consider(f, null, null);
   if (!out.length) return [];
   store.alertedIds = Array.from(alerted).slice(-600);
-  store.breaking = out.concat(store.breaking || []).slice(0, MAX_BREAKING);
+  store.breaking = out.concat(store.breaking || []).sort((a, b) => ((a.sev === "critical" ? 0 : 1) - (b.sev === "critical" ? 0 : 1)) || (a.t < b.t ? 1 : -1)).slice(0, MAX_BREAKING);
   return out;
 }
 
@@ -564,7 +571,7 @@ async function ingestLite(env) {
     }
     store.events = store.events.concat(freshExtras);
     store.feed = (store.feed || []).concat(freshFeed);
-    store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
+    store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => ((KINDW[a.kind] != null ? KINDW[a.kind] : 1) - (KINDW[b.kind] != null ? KINDW[b.kind] : 1)) || (a.d < b.d ? 1 : -1)).slice(0, 150);
     const heartbeatDue = !store.lastFast || store.lastFast < nowStampMinus(4 * 60 * 1000);
     if (!freshExtras.length && !freshFeed.length && !newAlerts.length && !heartbeatDue) {
       return { ok: true, lite: true, added: 0, feedAdded: 0, alerts: 0, pushed: 0, skippedWrite: true };
@@ -585,8 +592,8 @@ function shortPlace(p) {
 
 
 const TG_LABEL_SRC = "telegram";
-const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates"];
-const TG_PER_RUN = 2;
+const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates", "clashreport", "osint613"];
+const TG_PER_RUN = 3;
 let TG_DEBUG = [];
 
 function tgChannels(store) {
@@ -631,7 +638,7 @@ async function fetchTelegram(store, feedOut, slot) {
           // keep unlocated reports in live feed when regional or critical, always labeled unverified
           const region = regionOf(text);
           if (region || CRITICAL_RE.test(text)) feedOut.push({ id: "tgf-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-            a1: "@" + h, title: text.slice(0, 200), url: "https://t.me/" + dp, src: TG_LABEL_SRC, tier: "unverified",
+            a1: "@" + h, title: text.slice(0, 200), url: "https://t.me/" + dp, src: TG_LABEL_SRC, tier: "unverified", kind: "live",
             region, critical: !!CRITICAL_RE.test(text) });
           continue;
         }
@@ -705,7 +712,7 @@ async function ingestInner(env) {
   const seenF = new Set((store.feed || []).map(f => f.id));
   const freshFeed = feedOut.filter(f => !seenF.has(f.id));
   store.feed = (store.feed || []).concat(freshFeed);
-  store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
+  store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => ((KINDW[a.kind] != null ? KINDW[a.kind] : 1) - (KINDW[b.kind] != null ? KINDW[b.kind] : 1)) || (a.d < b.d ? 1 : -1)).slice(0, 150);
   const brkNew = detectBreaking(store, freshExtras.filter(e => e.src === "rss" || e.src === TG_LABEL_SRC), freshFeed);
   let brkPush = null;
   const brkPending = (Array.isArray(store.pendingPush) ? store.pendingPush : []).filter(a => a && a.t >= nowStampMinus(30 * 60 * 1000));

@@ -104,7 +104,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <body>
 <header>
   <div class="brand">הגמל <em>·</em> מוניטור גיאופוליטי</div>
-  <div class="sub">בוט התראות 24/7 · סריקת מבזקים כל דקה · איסוף מלא כל 5 דקות · מפה ממוקמת</div>
+  <div class="sub">בוט התראות 24/7 · מבזקים, טלגרם ועדכונים חיים כל דקה · כתבות להקשר בלבד · מפה ממוקמת</div>
   <div class="live"><span class="dot"></span> LIVE <span class="mono" id="updated">—</span> <span id="fastbeat" class="mono"></span> <button id="sndbtn" title="צליל התראה — מופעל אחרי לחיצה ראשונה בעמוד">🔊</button></div>
 </header>
 
@@ -114,8 +114,10 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
   <aside>
     <div class="panel-h" style="color:var(--red)">🚨 התראות מבזק · נשלחות גם לנייד <span class="tag" id="brkcount"></span></div>
     <div id="breaking"></div>
-    <div class="panel-h">⚡ מבזקים ועדכונים חיים <span class="tag" id="lfcount"></span></div>
+    <div class="panel-h">⚡ מבזקים, ציוצים ועדכונים חיים <span class="tag" id="lfcount"></span></div>
     <div id="livefeed"></div>
+    <div class="panel-h" style="color:var(--dim)">📰 כתבות · הקשר ואימות בלבד (משני) <span class="tag" id="artcount"></span></div>
+    <div id="articles" style="max-height:170px;overflow-y:auto;border-bottom:1px solid var(--line);opacity:.85"></div>
     <div class="panel-h">⚠ איתותי הסלמה <span class="tag" id="alertcount"></span></div>
     <div id="alerts"></div>
     <div class="panel-h">🎯 תקיפות ויירוטים <span class="tag" id="kcount"></span></div>
@@ -157,11 +159,11 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 </div></div>
 
 <footer>
-  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · כותרות חיות ynet / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). היררכיית פריטים: דיווחים עם מיקום מזוהה ברמת עיר/אתר מופיעים על המפה; דיווחים ממקור חדשותי ללא מיקום נשמרים בזרם המבזקים עם תווית אזור; דיווחים משמעותיים ללא מיקום מופיעים גם אם לא אומתו — עם אזהרת "לא מאומת" בולטת. אין ניפוי לפי מיקום בלבד.<br>
+  מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · מבזקים ועדכונים חיים ynet / וואלה / מעריב / mako / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (כולל מראי ציוצים) (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). היררכיית פריטים: דיווחים עם מיקום מזוהה ברמת עיר/אתר מופיעים על המפה; דיווחים ממקור חדשותי ללא מיקום נשמרים בזרם המבזקים עם תווית אזור; דיווחים משמעותיים ללא מיקום מופיעים גם אם לא אומתו — עם אזהרת "לא מאומת" בולטת. אין ניפוי לפי מיקום בלבד.<br>
 מה שאין, בכנות: שכבת התעופה הצבאית (ADS-B) מושבתת — adsb.lol, adsb.fi ו-OpenSky חוסמים גישה משרתי ענן; תופעל אוטומטית אם תיפתח. תנועת ספינות (AIS) גלובלית חינמית ללא מפתח לא קיימת — לא מוצגת במקום לזייף. תצלומי לווין טקטיים של תנועות כוחות דורשים ספקים בתשלום (Planet/Maxar); שכבת ה-NASA היומית היא רזולוציה נמוכה בלבד ולא טקטית. התראות צבע אדום: אין מקור רשמי נגיש ללא חסימה גיאוגרפית — לא מוצג.
   האיתותים הם סיגנלים סטטיסטיים מוקדמים בלבד: הם אינם תחזית, אינם מידע מודיעיני ואינם תחליף לאימות עצמאי.
   שכבת מצלמות: רק מצלמות ציבוריות פתוחות ללא מפתח שאומתו כעובדות — הכותל (Aish/EarthCam), חופי תל אביב (BeachCam/WebcamTaxi), פירמידות גיזה (SkylineWebcams). הסמנים מקשרים לעמוד השידור החיצוני; אין סנפשוטים מוטבעים כי הזרמים חסומי CORS להטמעה. לא נכללו (בכנות): מצלמות IBB איסטנבול (זרמי HLS חסומי CORS והפורטל לא נגיש), מצלמת בורג' ח'ליפה דובאי (העמוד הוסר), וספקי API במפתח כמו Windy/webcams.travel.
-  בוט ההתראות: סריקת מבזקי RSS וערוצי טלגרם ציבוריים כל דקה; דיווח תקיפתי חדש (טילים, יירוטים, פשיטות, תקיפות) מפיק התראת מבזק בעמוד ו-push לנייד של הבעלים דרך ntfy. ההתראות אוטומטיות ומבוססות דיווחים גלויים בלבד — הן אינן אישור רשמי, ודיווחים לא מאומתים מתויגים ככאלה גם ב-push.
+  בוט ההתראות: סריקת מבזקי RSS, ערוצי טלגרם ועדכונים חיים כל דקה — כתבות ארוכות משמשות הקשר ואימות בלבד; דיווח תקיפתי חדש (טילים, יירוטים, פשיטות, תקיפות) מפיק התראת מבזק בעמוד ו-push לנייד של הבעלים דרך ntfy. ההתראות אוטומטיות ומבוססות דיווחים גלויים בלבד — הן אינן אישור רשמי, ודיווחים לא מאומתים מתויגים ככאלה גם ב-push.
   מפה: OpenStreetMap · Esri Dark Gray.
 </footer>
 
@@ -206,7 +208,7 @@ function renderBreaking(){
     const crit = a.sev==='critical';
     return `<div class="brk ${crit?'crit':'high'}">
       <div>${crit?'🚨':'⚠️'} ${a.url?`<a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>`:a.title}</div>
-      <div class="badges"><span class="t mono">${fmtT(a.t)}</span><span class="t">${a.src||''}</span>${a.region?`<span class="b region">${a.region}</span>`:''}${a.tier==='unverified'?'<span class="b unv">⚠ לא מאומת</span>':'<span class="b ver">מקור חדשותי</span>'}${a.lat==null?'<span class="b noloc">ללא מיקום מדויק</span>':''}</div>
+      <div class="badges"><span class="t mono">${fmtT(a.t)}</span>${a.kind==='live'?'<span class="b" style="color:#4dd0e1;border-color:#2a4a52">📡 לייב</span>':a.kind==='article'?'<span class="b" style="color:#aaa">📰 כתבה</span>':'<span class="b" style="color:#ffd54f;border-color:#5a4a1e">⚡ מבזק</span>'}<span class="t">${a.src||''}</span>${a.region?`<span class="b region">${a.region}</span>`:''}${a.tier==='unverified'?'<span class="b unv">⚠ לא מאומת</span>':'<span class="b ver">מקור חדשותי</span>'}${a.lat==null?'<span class="b noloc">ללא מיקום מדויק</span>':''}</div>
     </div>`;
   }).join('');
   brkLayer.clearLayers();
@@ -260,7 +262,9 @@ let brkLayer = L.layerGroup().addTo(map);
 function renderStats(){
   const byCat = {}; for (const e of DATA.events) byCat[e.cat]=(byCat[e.cat]||0)+1;
   const pc={}; for (const e of DATA.events) pc[e.prec]=(pc[e.prec]||0)+1;
-  let h = `<div class="stat"><div class="num mono">${DATA.events.length}</div><div class="lbl">אירועים · 26 שעות · ${pc.city||0} ברמת עיר</div></div>`;
+  const liveN = (DATA.feed||[]).filter(f=>f.kind!=='article').length;
+  let h = `<div class="stat"><div class="num mono" style="color:#4dd0e1">${liveN}</div><div class="lbl">עדכונים חיים ומבזקים · 36 שעות</div></div>`;
+  h += `<div class="stat"><div class="num mono">${DATA.events.length}</div><div class="lbl">אירועים ממופים · 26 שעות · ${pc.city||0} ברמת עיר</div></div>`;
   h += `<div class="stat"><div class="num mono" style="color:var(--red)">${DATA.alerts.length}</div><div class="lbl">איתותי הסלמה</div></div>`;
   for (const [c,meta] of Object.entries(DATA.cats)) h += `<div class="stat"><div class="num mono" style="color:${meta.color}">${byCat[c]||0}</div><div class="lbl">${meta.he}</div></div>`;
   document.getElementById('stats').innerHTML = h;
@@ -303,18 +307,33 @@ function renderFeed(){
 
 function renderLivefeed(){
   const el = document.getElementById('livefeed');
-  const items = (DATA.feed||[]).filter(f=>!HIDE_UNV || f.tier!=='unverified');
+  const items = (DATA.feed||[]).filter(f=>f.kind!=='article' && (!HIDE_UNV || f.tier!=='unverified'));
   document.getElementById('lfcount').textContent = items.length ? items.length+' דיווחים' : '';
-  if (!items.length){ el.innerHTML = '<div class="alert empty">אין דיווחים לא ממוקמים כרגע</div>'; return; }
-  el.innerHTML = items.slice(0,40).map(f=>{
+  if (!items.length){ el.innerHTML = '<div class="alert empty">אין דיווחים לא ממוקמים כרגע</div>'; }
+  else el.innerHTML = items.slice(0,40).map(f=>{
     const title = f.url ? `<a href="${f.url}" target="_blank" rel="noopener">${f.title}</a>` : f.title;
     const badges = [];
+    badges.push(f.kind==='live' ? '<span class="b" style="color:#4dd0e1;border-color:#2a4a52">📡 עדכון חי</span>' : '<span class="b" style="color:#ffd54f;border-color:#5a4a1e">⚡ מבזק</span>');
     if (f.region) badges.push(`<span class="b region">${f.region}</span>`);
     badges.push(f.tier==='unverified' ? '<span class="b unv">⚠ לא מאומת</span>' : '<span class="b ver">מקור חדשותי</span>');
     badges.push('<span class="b noloc">ללא מיקום מדויק</span>');
     return `<div class="lf${f.critical?' crit':''}">
       <div>${f.critical?'⚡ ':''}${title}</div>
       <div class="badges"><span class="t mono">${fmtT(f.d)}</span><span class="t">${f.a1}</span>${badges.join('')}</div>
+    </div>`;
+  }).join('');
+  renderArticles();
+}
+function renderArticles(){
+  const el = document.getElementById('articles');
+  const arts = (DATA.feed||[]).filter(f=>f.kind==='article');
+  document.getElementById('artcount').textContent = arts.length || '';
+  if (!arts.length){ el.innerHTML = '<div class="alert empty">אין כתבות הקשר כרגע</div>'; return; }
+  el.innerHTML = arts.slice(0,15).map(f=>{
+    const title = f.url ? `<a href="${f.url}" target="_blank" rel="noopener">${f.title}</a>` : f.title;
+    return `<div class="lf" style="padding:5px 8px;font-size:12px">
+      <div>${title}</div>
+      <div class="badges"><span class="t mono">${fmtT(f.d)}</span><span class="t">${f.a1}</span>${f.region?`<span class="b region">${f.region}</span>`:''}</div>
     </div>`;
   }).join('');
 }
