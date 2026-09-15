@@ -382,8 +382,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function emptyStore() { return { updated: null, lastfile: null, events: [], windows: [], alerts: [], geoc: {}, feed: [] }; }
 async function loadStore(env) {
   const s = await env.MONITOR_KV.get("store");
-  if (!s) return emptyStore();
-  try { const st = JSON.parse(s); st.geoc = st.geoc || {}; return st; } catch { return emptyStore(); }
+  let st;
+  if (!s) st = emptyStore();
+  else { try { st = JSON.parse(s); st.geoc = st.geoc || {}; } catch { st = emptyStore(); } }
+  // channel list lives in its own KV key too: slow ingest runs can clobber an add/remove
+  // made while they were in flight (load-then-write race); the standalone key wins
+  try { const tgc = await env.MONITOR_KV.get("tgChannels"); if (tgc) { const arr = JSON.parse(tgc); if (Array.isArray(arr) && arr.length) st.tgChannels = arr; } } catch {}
+  return st;
 }
 
 async function geocodeOne(name) {
@@ -857,7 +862,7 @@ export default {
       if (!/^[a-z0-9_]{3,32}$/.test(h)) return json({ ok: false, reason: "bad handle" }, 400);
       const store = await loadStore(env);
       const chans = tgChannels(store);
-      if (!chans.includes(h)) { chans.push(h); await env.MONITOR_KV.put("store", JSON.stringify(store)); }
+      if (!chans.includes(h)) { chans.push(h); store.tgChannels = chans; await env.MONITOR_KV.put("store", JSON.stringify(store)); await env.MONITOR_KV.put("tgChannels", JSON.stringify(chans)); }
       return json({ ok: true, channels: chans });
     }
     if (url.pathname === "/api/tg/remove") {
@@ -866,6 +871,7 @@ export default {
       store.tgChannels = tgChannels(store).filter(c => c !== h);
       store.tgCursor = 0;
       await env.MONITOR_KV.put("store", JSON.stringify(store));
+      await env.MONITOR_KV.put("tgChannels", JSON.stringify(store.tgChannels));
       return json({ ok: true, channels: store.tgChannels });
     }
     if (url.pathname === "/api/status") {
