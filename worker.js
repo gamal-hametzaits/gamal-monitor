@@ -555,8 +555,13 @@ async function ingestLite(env) {
     const seenF = new Set((store.feed || []).map(f => f.id));
     const freshFeed = feedOut.filter(f => !seenF.has(f.id));
     const newAlerts = detectBreaking(store, freshExtras, freshFeed);
+    let pending = (Array.isArray(store.pendingPush) ? store.pendingPush : []).filter(a => a && a.t >= nowStampMinus(30 * 60 * 1000));
+    const toPush = pending.concat(newAlerts);
     let push = { sent: 0 };
-    if (newAlerts.length) push = await pushBreaking(env, newAlerts, store.ntfyTopic);
+    if (toPush.length) {
+      push = await pushBreaking(env, toPush, store.ntfyTopic);
+      store.pendingPush = push.sent ? [] : toPush.slice(0, 10);   // ntfy rate-limit storms delay, not drop
+    }
     store.events = store.events.concat(freshExtras);
     store.feed = (store.feed || []).concat(freshFeed);
     store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
@@ -703,7 +708,11 @@ async function ingestInner(env) {
   store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
   const brkNew = detectBreaking(store, freshExtras.filter(e => e.src === "rss" || e.src === TG_LABEL_SRC), freshFeed);
   let brkPush = null;
-  if (brkNew.length) brkPush = await pushBreaking(env, brkNew, store.ntfyTopic);
+  const brkPending = (Array.isArray(store.pendingPush) ? store.pendingPush : []).filter(a => a && a.t >= nowStampMinus(30 * 60 * 1000));
+  if (brkPending.length || brkNew.length) {
+    brkPush = await pushBreaking(env, brkPending.concat(brkNew), store.ntfyTopic);
+    store.pendingPush = brkPush.sent ? [] : brkPending.concat(brkNew).slice(0, 10);
+  }
 
   const geocoded = await geocodePending(store);
 
