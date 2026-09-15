@@ -455,6 +455,12 @@ function detectAlerts(batch, store) {
 
 // ---------- breaking alert bot ----------
 const MAX_BREAKING = 50;
+const NTFY_SETUP_HASH = "f338ffe95c2b51b1d5ace3b80b01687c53de03fcea87c46125605f3c146a0aac";   // sha256 of a one-time setup token held by the operator; hash only, token never committed
+
+async function sha256hex(s) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, "0")).join("");
+}
 const BRK_CRIT_ISR = /צבע אדום|אזעקה|אזעקות|חדירת מחבל|יירוט|יירט|נפילה|פגיעה ישירה|מטח|red alert|sirens?|rocket alert|infiltrat|direct hit|intercept|ballistic/iu;
 const ISR_TERMS = /ישראל|תל אביב|ירושלים|חיפה|באר שבע|אילת|הצפון|הדרום|גליל|גולן|israel|tel aviv|jerusalem|haifa|golan|galilee|eer\u0027?sheva/iu;
 
@@ -499,9 +505,9 @@ function detectBreaking(store, freshEvents, freshFeed) {
   return out;
 }
 
-async function pushBreaking(env, alerts) {
-  const topic = env.NTFY_TOPIC;
-  if (!topic) return { sent: 0, reason: "NTFY_TOPIC not set" };
+async function pushBreaking(env, alerts, storeTopic) {
+  const topic = storeTopic || env.NTFY_TOPIC;
+  if (!topic) return { sent: 0, reason: "ntfy topic not set" };
   const crit = alerts.some(a => a.sev === "critical");
   const list = alerts.slice(0, 3);
   const lines = list.map(a => (a.sev === "critical" ? "\uD83D\uDEA8 " : "\u26A0\uFE0F ") + a.title + (a.region ? " \u00B7 " + a.region : "") + (a.tier === "unverified" ? " (\u05DC\u05D0 \u05DE\u05D0\u05D5\u05DE\u05EA)" : ""));
@@ -534,7 +540,7 @@ async function ingestLite(env) {
     const freshFeed = feedOut.filter(f => !seenF.has(f.id));
     const newAlerts = detectBreaking(store, freshExtras, freshFeed);
     let push = { sent: 0 };
-    if (newAlerts.length) push = await pushBreaking(env, newAlerts);
+    if (newAlerts.length) push = await pushBreaking(env, newAlerts, store.ntfyTopic);
     store.events = store.events.concat(freshExtras);
     store.feed = (store.feed || []).concat(freshFeed);
     store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
@@ -681,7 +687,7 @@ async function ingestInner(env) {
   store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 150);
   const brkNew = detectBreaking(store, freshExtras.filter(e => e.src === "rss" || e.src === TG_LABEL_SRC), freshFeed);
   let brkPush = null;
-  if (brkNew.length) brkPush = await pushBreaking(env, brkNew);
+  if (brkNew.length) brkPush = await pushBreaking(env, brkNew, store.ntfyTopic);
 
   const geocoded = await geocodePending(store);
 
@@ -776,9 +782,20 @@ export default {
     if (url.pathname === "/api/flash") {
       return json(await ingestLite(env));
     }
+    if (url.pathname === "/api/setup-ntfy") {
+      const k = url.searchParams.get("k") || "";
+      const topic = (url.searchParams.get("topic") || "").trim();
+      if (!k || (await sha256hex(k)) !== NTFY_SETUP_HASH) return json({ ok: false, reason: "bad key" }, 403);
+      if (!/^[A-Za-z0-9][A-Za-z0-9_\-]{5,60}$/.test(topic)) return json({ ok: false, reason: "bad topic" }, 400);
+      const store = await loadStore(env);
+      store.ntfyTopic = topic;
+      await env.MONITOR_KV.put("store", JSON.stringify(store));
+      return json({ ok: true, set: true });
+    }
     if (url.pathname === "/api/alert-test") {
-      const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }]);
-      return json({ ok: true, push: r });
+      const st0 = await loadStore(env);
+      const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }], st0.ntfyTopic);
+      return json({ ok: true, push: r, topicSet: !!st0.ntfyTopic });
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);
