@@ -512,8 +512,21 @@ async function pushBreaking(env, alerts, storeTopic) {
   const list = alerts.slice(0, 3);
   const lines = list.map(a => (a.sev === "critical" ? "\uD83D\uDEA8 " : "\u26A0\uFE0F ") + a.title + (a.region ? " \u00B7 " + a.region : "") + (a.tier === "unverified" ? " (\u05DC\u05D0 \u05DE\u05D0\u05D5\u05DE\u05EA)" : ""));
   if (alerts.length > list.length) lines.push("\u05D5\u05E2\u05D5\u05D3 " + (alerts.length - list.length) + " \u05D3\u05D9\u05D5\u05D5\u05D7\u05D9\u05DD \u2014 \u05E4\u05EA\u05D7 \u05D0\u05EA \u05D4\u05DE\u05D5\u05E0\u05D9\u05D8\u05D5\u05E8");
-  try {
-    const r = await fetch("https://ntfy.sh/" + topic, {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await ntfyPost(topic, crit, lines);
+      if (r.status === 429 && attempt === 0) { await new Promise(res => setTimeout(res, 2500)); continue; }   // shared egress IPs get transiently rate-limited; one spaced retry
+      return { sent: r.ok ? 1 : 0, status: r.status };
+    } catch (e) {
+      if (attempt === 0) { await new Promise(res => setTimeout(res, 1500)); continue; }
+      return { sent: 0, error: String(e && e.message || e).slice(0, 120) };
+    }
+  }
+  return { sent: 0, error: "unreachable" };
+}
+
+async function ntfyPost(topic, crit, lines) {
+  return await fetch("https://ntfy.sh/" + topic, {
       method: "POST",
       headers: {
         "Title": crit ? "\uD83D\uDEA8 \u05DE\u05D1\u05D6\u05E7 \u05D1\u05D9\u05D8\u05D7\u05D5\u05E0\u05D9 \u00B7 \u05DE\u05D6\u05E8\u05D7 \u05EA\u05D9\u05DB\u05D5\u05DF" : "\u05D3\u05D9\u05D5\u05D5\u05D7 \u05D1\u05D9\u05D8\u05D7\u05D5\u05E0\u05D9 \u05D7\u05D3\u05E9",
@@ -523,8 +536,6 @@ async function pushBreaking(env, alerts, storeTopic) {
       },
       body: lines.join("\n"),
     });
-    return { sent: r.ok ? 1 : 0, status: r.status };
-  } catch (e) { return { sent: 0, error: String(e && e.message || e).slice(0, 120) }; }
 }
 
 async function ingestLite(env) {
