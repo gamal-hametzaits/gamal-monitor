@@ -256,6 +256,7 @@ body{background:var(--bg);font-weight:400;letter-spacing:.005em}
 #bnav{border-top-color:var(--line)}
 .setlink{display:block;margin:12px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;color:var(--acc);text-decoration:none;font-weight:500;background:var(--panel)}
 .setlink small{display:block;color:var(--dim);font-size:12px;margin-top:2px;font-weight:400}
+.card2 .bd.fld{color:var(--blue)}
 </style>
 </head>
 <body data-view="feed">
@@ -273,7 +274,7 @@ body{background:var(--bg);font-weight:400;letter-spacing:.005em}
 <main>
   <aside>
   <div class="v-feed">
-    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">מתפרץ</button><button data-t="ver">מאומת</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
+    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">מתפרץ</button><button data-t="ver">מאומת</button><button data-t="field">שטח</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
     <div id="stream"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
     <div id="streamnote"></div>
   </div>
@@ -738,7 +739,7 @@ function cardHtml(c){
   const pinned = !!PINS[c.id];
   const lk = (c.links||[]);
   return `<div class="card2 ${cls}" data-sid="${c.id}"><div class="ttl" dir="auto">${escH(c.title)}</div>
-  <div class="row2"><span class="bd ${c.tier}">${escH(c.tierHe)}</span>${c.burst?'<span class="bd burst">מתפרץ</span>':''}${c.claim?'<span class="bd claim">טענה, לא עובדה</span>':''}${c.llmMerged?'<span class="bd mdl" title="אוחד בעזרת מודל, לא נספר לדירוג">איחוד מודל</span>':''}<span>לפני ${ago(c.age)}</span><span>${c.n>1?c.n+' דיווחים · ':''}<bdi>${escH((c.srcs||[]).slice(0,3).join(', '))}</bdi></span></div>
+  <div class="row2"><span class="bd ${c.tier}">${escH(c.tierHe)}</span>${c.field?'<span class="bd fld">שטח · לא רשמי</span>':''}${c.burst?'<span class="bd burst">מתפרץ</span>':''}${c.claim?'<span class="bd claim">טענה, לא עובדה</span>':''}${c.llmMerged?'<span class="bd mdl" title="אוחד בעזרת מודל, לא נספר לדירוג">איחוד מודל</span>':''}<span>לפני ${ago(c.age)}</span><span>${c.n>1?c.n+' דיווחים · ':''}<bdi>${escH((c.srcs||[]).slice(0,3).join(', '))}</bdi></span></div>
   <div class="acts">${c.lat!=null?`<button data-act="map" data-lat="${c.lat}" data-lon="${c.lon}">🗺 במפה</button>`:''}${lk[0]?`<a href="${escH(lk[0].u)}" target="_blank" rel="noopener">🔗 מקור</a>`:''}<button class="pin ${pinned?'on':''}" data-act="pin">${pinned?'★ שמור':'☆ שמור'}</button><button data-act="share">📋</button></div>
   ${lk.length>1?`<details><summary>${lk.length} מקורות · ${escH(c.why||'')}</summary>${lk.map(l=>`<a href="${escH(l.u)}" target="_blank" rel="noopener"><bdi>${escH(l.s)}</bdi> ↗</a>`).join('')}</details>`:`<details><summary>למה הדירוג?</summary><span style="color:var(--dim)">${escH(c.why||'')}</span></details>`}</div>`;
 }
@@ -751,6 +752,7 @@ function renderStream(){
   else {
     if (TIER==='burst') items = items.filter(c=>c.burst||brkIds.has(c.id));
     if (TIER==='ver') items = items.filter(c=>c.tier==='verified');
+    else if (TIER==='field') items = items.filter(c=>c.field);
     if (Q) { const q=Q.toLowerCase(); items = items.filter(c=>c.title.toLowerCase().includes(q)||(c.srcs||[]).join(' ').toLowerCase().includes(q)); }
     if (TIER==='all' && !Q){
       const top = STREAM.breaking.slice(0,5);

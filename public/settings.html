@@ -14,6 +14,9 @@ h2{font:500 12px "IBM Plex Mono",Heebo,monospace;color:var(--acc);letter-spacing
 .row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #20252a}
 .row:last-child{border:0}
 .row .l{flex:1;min-width:0}.row .l b{font-weight:500;font-size:15px;display:block}.row .l small{color:var(--dim);font-size:12px}
+textarea,input[type=text],select{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px;width:100%;font:15px Heebo}
+.addrow{display:flex;gap:8px;margin:6px 0}.addrow input,.addrow select{flex:1}.addcol{display:flex;flex-direction:column;gap:8px}
+select.rs{width:auto;padding:4px 6px;font-size:12px}
 input[type=number],input[type=password]{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px;width:96px;font:16px "IBM Plex Mono",monospace;text-align:center}
 input[type=password]{width:100%;text-align:right;font-family:Heebo}
 .sw{position:relative;width:46px;height:26px;flex:none}.sw input{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
@@ -38,8 +41,16 @@ button.main{border-color:var(--acc);color:var(--acc);flex:1}
 <section><h2>סף ומתפרצים</h2><div id="thr"></div></section>
 <section><h2>התראות דחיפה (ntfy)</h2><div id="push"></div></section>
 <section><h2>קצב ומשאבים</h2><div id="rate"></div></section>
+<section><h2>מקורות שטח (לא רשמיים)</h2><p class="note">ערוצי טלגרם ציבוריים ופוסטים ממסטודון. דיווח שטח בודד תמיד מסומן "אינדיקציה ראשונית" ולא עולה בדירוג בלי אישור ממקור נוסף.</p><div id="field"></div>
+<div class="row"><div class="l"><b>הוסף ערוץ טלגרם</b><small>שם משתמש ציבורי, למשל abualiexpress</small></div></div><div class="addrow"><input type="text" id="addTg" placeholder="@channel" dir="ltr"><button id="addTgB">הוסף</button></div>
+<p class="note">תגיות מסטודון (מופרדות בפסיק)</p><textarea id="mTags" rows="2" dir="ltr"></textarea></section>
+<section><h2>מילות מפתח</h2><p class="note">מעקב: פריט שמכיל מילה כזו נחשב קריטי ומופיע ב"מתפרץ". השתקה: פריט עם מילה כזו מוסתר לגמרי. מופרדות בפסיק.</p>
+<p class="note">מעקב</p><textarea id="watch" rows="2"></textarea><p class="note">השתקה</p><textarea id="mute" rows="2"></textarea></section>
+<section><h2>הוסף מקור RSS</h2><p class="note">כתובת https בלבד. ברירת מחדל: מסווג כ"שטח" (לא מאומת, לא נחשב אישור).</p>
+<div class="addcol"><input type="text" id="cUrl" placeholder="https://.../feed" dir="ltr"><input type="text" id="cName" placeholder="שם המקור"><div class="addrow"><select id="cLang"><option value="en">EN</option><option value="he">עברית</option><option value="ar">ערבית</option><option value="fa">פרסית</option><option value="ru">רוסית</option></select><select id="cRel"><option value="field">שטח</option><option value="media">חדשות</option><option value="osint">OSINT</option></select><button id="addRssB">הוסף</button></div></div></section>
 <section><h2>מקורות RSS <span class="tag" id="rsssum"></span></h2><p class="note">כבוי = המקור לא נשלף כלל. סטטוס מגיע מהבדיקה האחרונה של השרת, לא מהנחה.</p><div class="srcs" id="rss"></div></section>
 <section><h2>ערוצי טלגרם</h2><p class="note">כל הערוצים ציבוריים ולא מאומתים. פריט משם נשאר "אינדיקציה ראשונית" עד שמקור חדשותי מאשר.</p><div class="srcs" id="tg"></div></section>
+<section><h2>שעות שקט</h2><div id="quiet"></div></section>
 <section><h2>תצוגה</h2><div id="ui"></div></section>
 <section><h2>איפוס</h2><button id="reset">החזר ברירות מחדל</button></section>
 <div id="foot"><span id="msg"></span><button class="main" id="save">שמור</button></div>
@@ -47,7 +58,7 @@ button.main{border-color:var(--acc);color:var(--acc);flex:1}
 let S, D, LIM, SRC = {};
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const relHe = { media: "חדשות", official: "רשמי", state: "מדיה ממלכתית", osint: "OSINT/מחקר" };
+const relHe = { media: "חדשות", official: "רשמי", state: "מדיה ממלכתית", osint: "OSINT/מחקר", field: "שטח" };
 const stHe = { ok: "תקין", flaky: "לא יציב", stale: "לא מתעדכן", untested: "טרם נבדק", down: "נפל" };
 function sw(id, on, title, sub) { return `<div class="row"><div class="l"><b>${title}</b><small>${sub || ""}</small></div><label class="sw"><input type="checkbox" id="${id}" ${on ? "checked" : ""}><i></i></label></div>`; }
 function num(id, v, title, sub, lim) { return `<div class="row"><div class="l"><b>${title}</b><small>${sub || ""}${lim ? " · טווח " + lim[0] + "–" + lim[1] : ""}</small></div><input type="number" id="${id}" value="${v}" min="${lim ? lim[0] : ""}" max="${lim ? lim[1] : ""}" inputmode="numeric"></div>`; }
@@ -70,26 +81,35 @@ async function load() {
     num("rotTg", S.rotation.tg, "טלגרם לכל ריצה", "ריצה כל 5 דקות.", LIM["rotation.tg"]) +
     num("poll", S.clientPollSec, "רענון המסך (שניות)", "בטלפון. פחות = יותר סוללה ונתונים.", LIM.clientPollSec);
   $("ui").innerHTML = sw("hideTg", S.hideTg, "הסתר פריטי טלגרם בלבד", "מציג רק פריטים שמקור חדשותי דיווח עליהם. יהיה פחות מהיר.");
+  $("quiet").innerHTML = sw("qOn", S.push.quiet.on, "השתק התראות לא קריטיות", "בשעות שבהן אתה ישן. קריטי עדיין נשלח. שעון ירושלים.") + num("qFrom", S.push.quiet.from, "מתחיל (שעה)", "", [0, 23]) + num("qTo", S.push.quiet.to, "נגמר (שעה)", "", [0, 23]);
+  $("ui").innerHTML += sw("fieldFirst", S.fieldFirst, "העדף דיווחי שטח", "מציג גם דיווחי שטח בודדים עם מיקום, לא רק כאלה שאושרו. נשארים מסומנים כלא מאומתים.");
+  $("field").innerHTML = sw("mastoOn", S.mastoOn, "מסטודון", "פוסטים ציבוריים לפי תגיות. רק פוסטים שמתארים אירוע ומציינים מקום. מסוננים בוטים, גיוס כספים ושיתופי קישורים.") + num("rotMasto", S.rotation.masto, "תגיות מסטודון לכל ריצה", "", LIM["rotation.masto"]);
+  $("mTags").value = (S.mastoTags || []).join(", "); $("watch").value = (S.watch || []).join(", "); $("mute").value = (S.mute || []).join(", ");
   renderSrc();
 }
 function renderSrc() {
   const rss = window.__rss || (window.__rss = null);
   fetch("/api/settings").then(r => r.json()).then(a => {
-    const off = new Set(S.off);
+    window.__RSS = a.rss; const off = new Set(S.off);
     const rows = a.rss.map(f => { const h = SRC[f.name] || {}; const st = h.status || "untested";
-      return `<div class="row"><div class="l"><b>${esc(f.name)}<span class="tag">${esc(f.lang)}</span><span class="tag">${relHe[f.rel] || f.rel}</span>${f.flash ? '<span class="tag st">מבזק</span>' : ""}</b><small><span class="tag ${st === "ok" ? "ok" : st === "untested" ? "" : "bad"}">${stHe[st] || st}</span>${h.newestAgeMin != null ? " פריט אחרון לפני " + (h.newestAgeMin < 120 ? h.newestAgeMin + " דק'" : Math.round(h.newestAgeMin / 60) + " שע'") : ""}</small></div><label class="sw"><input type="checkbox" data-rss="${esc(f.name)}" ${off.has(f.name) ? "" : "checked"}><i></i></label></div>`; });
+      return `<div class="row"><div class="l"><b>${esc(f.name)}<span class="tag">${esc(f.lang)}</span><span class="tag">${relHe[f.rel] || f.rel}</span>${f.flash ? '<span class="tag st">מבזק</span>' : ""}</b><small><span class="tag ${st === "ok" ? "ok" : st === "untested" ? "" : "bad"}">${stHe[st] || st}</span>${h.newestAgeMin != null ? " פריט אחרון לפני " + (h.newestAgeMin < 120 ? h.newestAgeMin + " דק'" : Math.round(h.newestAgeMin / 60) + " שע'") : ""}</small></div><select class="rs" data-rel="${esc(f.name)}">${["media","official","state","osint","field"].map(r => `<option value="${r}" ${f.rel === r ? "selected" : ""}>${relHe[r] || "שטח"}</option>`).join("")}</select>${f.custom ? `<button data-delrss="${esc(f.name)}">✕</button>` : ""}<label class="sw"><input type="checkbox" data-rss="${esc(f.name)}" ${off.has(f.name) ? "" : "checked"}><i></i></label></div>`; });
     $("rss").innerHTML = rows.join("");
     const sum = {}; a.rss.forEach(f => { const s = (SRC[f.name] || {}).status || "untested"; sum[s] = (sum[s] || 0) + 1; });
     $("rsssum").textContent = a.rss.length + " מקורות · " + (sum.ok || 0) + " תקינים";
     const toff = new Set(S.tgOff);
-    $("tg").innerHTML = a.tg.map(h => `<div class="row"><div class="l"><b>@${esc(h)}</b><small><span class="tag">לא מאומת</span></small></div><label class="sw"><input type="checkbox" data-tg="${esc(h)}" ${toff.has(h) ? "" : "checked"}><i></i></label></div>`).join("");
+    $("tg").innerHTML = a.tg.map(h => `<div class="row"><div class="l"><b>@${esc(h)}</b><small><span class="tag">לא מאומת</span></small></div>${(S.customTg || []).includes(h) ? `<button data-deltg="${esc(h)}">✕</button>` : ""}<label class="sw"><input type="checkbox" data-tg="${esc(h)}" ${toff.has(h) ? "" : "checked"}><i></i></label></div>`).join("");
   });
 }
+const split = s => String(s).split(/[,\n،]/).map(x => x.trim()).filter(Boolean);
+function relOv() { const o = {}; document.querySelectorAll("[data-rel]").forEach(s => { const f = (window.__RSS || []).find(x => x.name === s.dataset.rel); if (f && s.value !== f.base) o[f.name] = s.value; }); return o; }
 function collect() {
   const v = id => Number($(id).value), c = id => $(id).checked;
   return { off: [...document.querySelectorAll("[data-rss]")].filter(x => !x.checked).map(x => x.dataset.rss), tgOff: [...document.querySelectorAll("[data-tg]")].filter(x => !x.checked).map(x => x.dataset.tg),
     llm: { on: c("llmOn"), budget: v("llmBudget") }, burst: { minSrc: v("bMin"), winMin: v("bWin"), ageMin: v("bAge") }, breakingWinMin: v("brkWin"), streamHours: v("strH"),
-    push: { on: c("pushOn"), critOnly: c("pushCrit") }, rotation: { rss: v("rotRss"), tg: v("rotTg") }, clientPollSec: v("poll"), hideTg: c("hideTg") };
+    push: { on: c("pushOn"), critOnly: c("pushCrit") }, rotation: { rss: v("rotRss"), tg: v("rotTg") }, clientPollSec: v("poll"), hideTg: c("hideTg"),
+    fieldFirst: c("fieldFirst"), mastoOn: c("mastoOn"), rotation: { rss: v("rotRss"), tg: v("rotTg"), masto: v("rotMasto") },
+    mastoTags: split($("mTags").value), watch: split($("watch").value), mute: split($("mute").value), customTg: S.customTg || [], customRss: S.customRss || [],
+    relOv: relOv(), push: { on: c("pushOn"), critOnly: c("pushCrit"), quiet: { on: c("qOn"), from: v("qFrom"), to: v("qTo") } } };
 }
 async function post(body) {
   const pin = $("pin").value || sessionStorage.getItem("pin") || "";
@@ -101,5 +121,12 @@ async function post(body) {
 }
 $("save").onclick = async () => { if (!($("pin").value || sessionStorage.getItem("pin"))) { $("msg").className = "err"; $("msg").textContent = "הקלד קוד גישה"; return; } if (await post({ settings: collect() })) load(); };
 $("reset").onclick = async () => { if (confirm("להחזיר את כל ההגדרות לברירת מחדל?") && await post({ reset: true })) load(); };
+document.addEventListener("click", async e => {
+  const t = e.target;
+  if (t.id === "addTgB") { const hnd = $("addTg").value.trim().replace(/^@|https?:\/\/t\.me\/(s\/)?/g, ""); if (!/^[A-Za-z0-9_]{4,40}$/.test(hnd)) { $("msg").className = "err"; $("msg").textContent = "שם ערוץ לא תקין"; return; } const s = collect(); s.customTg = Array.from(new Set((S.customTg || []).concat(hnd))); if (await post({ settings: s })) { $("addTg").value = ""; load(); } }
+  if (t.id === "addRssB") { const u = $("cUrl").value.trim(), n = $("cName").value.trim(); if (!/^https:\/\//.test(u) || !n) { $("msg").className = "err"; $("msg").textContent = "נדרשים כתובת https ושם"; return; } const s = collect(); s.customRss = (S.customRss || []).concat({ url: u, name: n, lang: $("cLang").value, rel: $("cRel").value }); if (await post({ settings: s })) { $("cUrl").value = ""; $("cName").value = ""; load(); } }
+  if (t.dataset.delrss) { const s = collect(); s.customRss = (S.customRss || []).filter(f => f.name !== t.dataset.delrss); if (await post({ settings: s })) load(); }
+  if (t.dataset.deltg) { const s = collect(); s.customTg = (S.customTg || []).filter(x => x !== t.dataset.deltg); if (await post({ settings: s })) load(); }
+});
 load();
 </script></body></html>
