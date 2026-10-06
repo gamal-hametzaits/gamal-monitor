@@ -91,7 +91,7 @@ async function load() {
     num("poll", S.clientPollSec, "רענון המסך (שניות)", "בטלפון. פחות = יותר סוללה ונתונים.", LIM.clientPollSec);
   $("ui").innerHTML = sw("hideTg", S.hideTg, "הסתר פריטי טלגרם בלבד", "מציג רק פריטים שמקור חדשותי דיווח עליהם. יהיה פחות מהיר.");
   $("quiet").innerHTML = sw("qOn", S.push.quiet.on, "השתק התראות לא קריטיות", "בשעות שבהן אתה ישן. קריטי עדיין נשלח. שעון ירושלים.") + num("qFrom", S.push.quiet.from, "מתחיל (שעה)", "", [0, 23]) + num("qTo", S.push.quiet.to, "נגמר (שעה)", "", [0, 23]);
-  $("ui").innerHTML += sw("showArticles", S.showArticles, "הצג מאמרים וניתוחים", "כבוי כברירת מחדל: המסך הראשי מציג דיווחי שטח גולמיים בלבד. הדלקה מחזירה כתבות וניתוחים לזרם.");
+  $("ui").innerHTML += sw("showArticles", S.showArticles, "הצג גם מבזקים ומאמרים", "כבוי: המסך הראשי מציג רק דיווחי שטח חיים. הדלקה מוסיפה לזרם גם מבזקי סוכנויות, כתבות וניתוחים.");
   $("ui").innerHTML += sw("fieldFirst", S.fieldFirst, "העדף דיווחי שטח", "מציג גם דיווחי שטח בודדים עם מיקום, לא רק כאלה שאושרו. נשארים מסומנים כלא מאומתים.");
   $("field").innerHTML = sw("mastoOn", S.mastoOn, "מסטודון", "פוסטים ציבוריים לפי תגיות. רק פוסטים שמתארים אירוע ומציינים מקום. מסוננים בוטים, גיוס כספים ושיתופי קישורים.") + num("rotMasto", S.rotation.masto, "תגיות מסטודון לכל ריצה", "", LIM["rotation.masto"]);
   $("mTags").value = (S.mastoTags || []).join(", "); $("watch").value = (S.watch || []).join(", "); $("mute").value = (S.mute || []).join(", ");

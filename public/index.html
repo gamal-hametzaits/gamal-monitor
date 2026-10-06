@@ -284,7 +284,7 @@ body{background:var(--bg);font-weight:400;letter-spacing:.005em}
 <main>
   <aside>
   <div class="v-feed">
-    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">מתפרץ</button><button data-t="ver">מאומת</button><button data-t="field">שטח</button><button data-t="art" class="art">מאמרים</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
+    <div id="tb"><div id="tiers"></div></div>
     <div id="stream"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
     <div id="streamnote"></div>
   </div>
@@ -741,7 +741,7 @@ document.getElementById('modal').onclick = e=>{ if(e.target.id==='modal') closeR
 // ---- Stream (merged, deduped, tiered): the main screen ----
 let ART = localStorage.getItem('showArt')==='1', TH = 'all', TIER = 'all', Q = '', STREAM = null, PINS = {};
 try{ PINS = JSON.parse(localStorage.getItem('pins')||'{}'); }catch(e){}
-function savePins(){ localStorage.setItem('pins', JSON.stringify(PINS)); document.getElementById('pincount').textContent = Object.keys(PINS).length; }
+function savePins(){ localStorage.setItem('pins', JSON.stringify(PINS)); {const pc=document.getElementById('pincount'); if(pc) pc.textContent=Object.keys(PINS).length;} }
 function ago(m){ return m==null?'':(m<1?'עכשיו':m<60?m+' דק׳':m<1440?Math.floor(m/60)+' שע׳ '+(m%60?m%60+' דק׳':''):Math.floor(m/1440)+' ימים'); }
 function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function rawHtml(c){
@@ -764,38 +764,29 @@ function cardHtml(c){
 }
 function renderStream(){
   const el = document.getElementById('stream'); if (!STREAM) return;
-  let items = STREAM.stream.slice();
-  const brkIds = new Set(STREAM.breaking.map(b=>b.id));
-  let head = '';
+  const all = STREAM.stream.slice().sort((a,b)=>(a.age==null?1e9:a.age)-(b.age==null?1e9:b.age));
+  const cnt = {}; all.forEach(c=>{ const k=c.obs||'אחר'; cnt[k]=(cnt[k]||0)+1; });
+  if (TIER!=='all' && TIER!=='pin' && !cnt[TIER]) TIER='all';
+  const chips = [['all','הכל ('+all.length+')']].concat(Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(k=>[k,k+' ('+cnt[k]+')'])).concat([['pin','⭐ '+Object.keys(PINS).length]]);
+  document.getElementById('tiers').innerHTML = chips.map(([k,l])=>`<button data-t="${escH(k)}" class="${k===TIER?'on':''}">${escH(l)}</button>`).join('');
+  let items = all;
   if (TIER==='pin') items = Object.values(PINS).sort((a,b)=>b.pt-a.pt).map(p=>({...p.c, age:null}));
-  else {
-    if (TIER==='burst') items = items.filter(c=>c.burst||brkIds.has(c.id));
-    if (TIER==='ver') items = items.filter(c=>c.tier==='verified');
-    else if (TIER==='field') items = items.filter(c=>c.field);
-    if (Q) { const q=Q.toLowerCase(); items = items.filter(c=>c.title.toLowerCase().includes(q)||(c.srcs||[]).join(' ').toLowerCase().includes(q)); }
-    if (TIER==='all' && !Q){
-      const top = STREAM.breaking.slice(0,5);
-      if (top.length){ head = '<div class="hdrsec">מתפרץ עכשיו · 3 שעות אחרונות</div>'+top.map(cardHtml).join('')+'<div class="hdrsec" style="color:var(--dim);background:var(--bg)">דיווחי שטח · חדש לישן</div>'; items = items.filter(c=>!top.some(t=>t.id===c.id)); }
-    }
-  }
-  el.innerHTML = head + (items.length ? items.slice(0,80).map(cardHtml).join('') : '<div style="padding:30px 16px;color:var(--dim);text-align:center">אין דיווחים להצגה בסינון הזה. נסה "הכל" או זירה אחרת.</div>');
+  else if (TIER!=='all') items = all.filter(c=>(c.obs||'אחר')===TIER);
+  el.innerHTML = items.length ? items.slice(0,80).map(cardHtml).join('') : '<div style="padding:30px 16px;color:var(--dim);text-align:center">אין דיווחי שטח חיים בסינון הזה כרגע.</div>';
   const L = STREAM.llm||{};
-  document.getElementById('streamnote').innerHTML = escH(STREAM.rules)+'<br>מודל עזר: '+(L.enabled?(L.exhausted?'מכסת היום נגמרה, דירוג לפי כללים בלבד':'פעיל, לא מעלה דירוג'):'כבוי')+'. '+escH(STREAM.gaps);
+  document.getElementById('streamnote').innerHTML = 'דיווחי שטח בלבד, חדש למעלה. כל דיווח בודד הוא אינדיקציה לא מאומתת.';
   markNew();
 }
 async function loadStream(){
   try{
-    const r = await fetch('/api/sitrep?theater='+TH+(ART?'&articles=1':'')); if(!r.ok) throw 0; const d = await r.json();
+    const r = await fetch('/api/sitrep?theater=all'); if(!r.ok) throw 0; const d = await r.json();
     const first = !STREAM; const prev = new Set((STREAM?STREAM.stream:[]).map(c=>c.id)); STREAM = d;
     window.__fresh = first ? new Set() : new Set(d.stream.filter(c=>!prev.has(c.id)).map(c=>c.id));
-    document.getElementById('thr').innerHTML = d.theaters.map(t=>`<button data-th="${t.id}" class="${t.id===TH?'on':''}">${escH(t.he)}</button>`).join('');
-    renderStream();
+        renderStream();
   }catch(e){ if(!STREAM) document.getElementById('stream').innerHTML='<div style="padding:24px;color:var(--dim)">לא הצלחתי לטעון. מנסה שוב...</div>'; }
 }
-document.getElementById('thr').addEventListener('click', e=>{ const b=e.target.closest('[data-th]'); if(!b) return; TH=b.dataset.th; STREAM=null; document.getElementById('stream').innerHTML='<div class="sk"></div><div class="sk"></div>'; loadStream(); });
-document.getElementById('tiers').addEventListener('click', e=>{ const b=e.target.closest('[data-t]'); if(!b) return; if(b.dataset.t==='art'){ ART=!ART; localStorage.setItem('showArt',ART?'1':'0'); b.classList.toggle('on',ART); STREAM=null; loadStream(); return; } TIER=b.dataset.t; document.querySelectorAll('#tiers [data-t]').forEach(x=>x.classList.toggle('on',x===b)); renderStream(); });
-document.getElementById('fullrep').onclick = ()=>openReport(true);
-let qT; document.getElementById('q').addEventListener('input', e=>{ clearTimeout(qT); qT=setTimeout(()=>{ Q=e.target.value.trim(); renderStream(); },200); });
+if(0)document.createElement('i').addEventListener('click', e=>{ const b=e.target.closest('[data-th]'); if(!b) return; TH=b.dataset.th; STREAM=null; document.getElementById('stream').innerHTML='<div class="sk"></div><div class="sk"></div>'; loadStream(); });
+document.getElementById('tiers').addEventListener('click', e=>{ const b=e.target.closest('[data-t]'); if(!b) return; TIER=b.dataset.t; document.querySelectorAll('#tiers [data-t]').forEach(x=>x.classList.toggle('on',x===b)); renderStream(); });
 document.getElementById('stream').addEventListener('click', e=>{
   const b = e.target.closest('[data-act]'); if(!b) return; const card=b.closest('[data-sid]'); const id=card.dataset.sid;
   const c = (STREAM.stream.concat(STREAM.breaking)).find(x=>x.id===id) || (PINS[id]&&PINS[id].c);
@@ -803,7 +794,7 @@ document.getElementById('stream').addEventListener('click', e=>{
   else if (b.dataset.act==='pin'){ if (PINS[id]) delete PINS[id]; else if (c) PINS[id]={c, pt:Date.now()}; savePins(); renderStream(); }
   else if (b.dataset.act==='share' && c){ const t = c.title+' ('+c.tierHe+(c.claim?', טענה':'')+')'+(c.links&&c.links[0]?' '+c.links[0].u:''); (navigator.share?navigator.share({text:t}):navigator.clipboard.writeText(t)).then(()=>{b.textContent='✓'; setTimeout(()=>b.textContent='📋',1500)}).catch(()=>{}); }
 });
-document.querySelector('#tiers .art').classList.toggle('on',ART); savePins(); loadStream(); let POLL=45; fetch('/api/settings').then(r=>r.json()).then(a=>{ POLL=a.settings.clientPollSec||45; if(a.settings.hideTg){ HIDE_UNV=true; try{renderFilters();}catch(e){} } }).catch(()=>{});
+savePins(); loadStream(); let POLL=45; fetch('/api/settings').then(r=>r.json()).then(a=>{ POLL=a.settings.clientPollSec||45; if(a.settings.hideTg){ HIDE_UNV=true; try{renderFilters();}catch(e){} } }).catch(()=>{});
 let lastPoll=Date.now(); setInterval(()=>{ if(document.hidden||Date.now()-lastPoll<POLL*1000-500) return; lastPoll=Date.now(); loadStream(); load(); }, 5000);
 load();
 setInterval(()=>{ if(!document.hidden && DATA) updateBeat(); }, 15000);
