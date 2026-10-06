@@ -1192,7 +1192,7 @@ function best0(c) { return c.items.slice().sort((a, b) => (b.mainstream - a.main
 // ---- raw field-report classification: eyewitness observations vs analysis/articles ----
 const ANALYSIS_RE = /analysis|opinion|op-ed|editorial|explained|what we know|why |how |could |might |would |expert|according to|sources say|report says|poll|interview|thread|\u05E0\u05D9\u05EA\u05D5\u05D7|\u05D3\u05E2\u05D4|\u05DE\u05D3\u05D5\u05E2|\u05DE\u05D4 \u05D9\u05D9\u05D1\u05D5\u05D0|\u05EA\u05D7\u05E7\u05D9\u05E8|\u062A\u062D\u0644\u064A\u0644|\u0631\u0623\u064A/i;
 const OBS_TYPES = [
-  [/\bexplosion\b|\bblast\b|\bboom\b|\bheard\b|\bloud\b|\u05E4\u05D9\u05E6\u05D5\u05E5|\u05D1\u05D5\u05DD|\u05E9\u05DE\u05E2\u05E0\u05D5|\u05E7\u05D5\u05DC|\u0627\u0646\u0641\u062C\u0627\u0631|\u0633\u0645\u0639\u0646\u0627|\u062F\u0648\u064A/i, "\u05E4\u05D9\u05E6\u05D5\u05E5 / \u05E7\u05D5\u05DC"],
+  [/\bexplosion\b|\bblast\b|\bboom\b|\bheard\b|\bloud\b|\u05E4\u05D9\u05E6\u05D5\u05E5|\u05D1\u05D5\u05DD|\u05E9\u05DE\u05E2\u05E0\u05D5|(?:^|\s)\u05E7\u05D5\u05DC(?:\s|$)|\u0627\u0646\u0641\u062C\u0627\u0631|\u0633\u0645\u0639\u0646\u0627|\u062F\u0648\u064A/i, "\u05E4\u05D9\u05E6\u05D5\u05E5 / \u05E7\u05D5\u05DC"],
   [/\bsiren\b|\balert\b|\u05D0\u05D6\u05E2\u05E7|\u05E6\u05D1\u05E2 \u05D0\u05D3\u05D5\u05DD|\u0635\u0641\u0627\u0631/i, "\u05D0\u05D6\u05E2\u05E7\u05D5\u05EA"],
   [/\baircraft\b|\bplane\b|\bjet\b|\bfighter\b|\bhelicopter\b|\bdrone\b|\buav\b|\bairspace\b|\u05DE\u05D8\u05D5\u05E1|\u05DE\u05D8\u05D5\u05E1\u05D9\u05DD|\u05DB\u05D8\u05D1"\u05DD|\u05E8\u05D7\u05E4\u05DF|\u05DE\u05E1\u05D5\u05E7|\u0637\u0627\u0626\u0631\u0629|\u0637\u064A\u0631\u0627\u0646|\u0645\u0633\u064A\u0631/i, "\u05DE\u05D8\u05D5\u05E1\u05D9\u05DD / \u05E8\u05D7\u05E4\u05E0\u05D9\u05DD"],
   [/\bevacuat|\bevacuation\b|\bfled\b|\bshelter\b|\u05E4\u05D9\u05E0\u05D5\u05D9|\u05DE\u05E4\u05D5\u05E0\u05D9\u05DD|\u05DE\u05E8\u05D7\u05D1 \u05DE\u05D5\u05D2\u05DF|\u0625\u062E\u0644\u0627\u0621|\u0646\u0632\u0648\u062D/i, "\u05E4\u05D9\u05E0\u05D5\u05D9"],
@@ -1202,6 +1202,8 @@ const OBS_TYPES = [
   [/\bstrike\b|\battack\b|\bshelling\b|\bmissile\b|\brocket\b|\bhit\b|\u05EA\u05E7\u05D9\u05E4\u05D4|\u05D8\u05D9\u05DC|\u05E8\u05E7\u05D8\u05D4|\u05D4\u05E4\u05E6\u05E6\u05D4|\u063A\u0627\u0631\u0629|\u0642\u0635\u0641|\u0635\u0627\u0631\u0648\u062E/i, "\u05EA\u05E7\u05D9\u05E4\u05D4 / \u05D9\u05E8\u05D9"],
 ];
 function obsOf(t) { for (const [re, he] of OBS_TYPES) if (re.test(t)) return he; return ""; }
+const NOT_FIELD_RE = /contract|awarded|billion|million|\bquestion\b|^report:|\breport:|\?\s*$|what's your|your view|obtained a photo|cinema|movie|protest|demonstrat|rally\b|march\b|petition|rall(y|ies)|arrested|detained|police|court|trial|lawsuit|footage shows|\bvideo shows|reportedly joining|\u05D4\u05E4\u05D2\u05E0|\u05DE\u05D7\u05D0\u05D4|\u05E2\u05E6\u05E8\u05EA|\u05E0\u05E2\u05E6\u05E8\u05D5|\u05E2\u05E6\u05D5\u05E8|\u05D1\u05D9\u05D4"\u05DE|\u05DE\u05E9\u05D8\u05E8\u05D4|\u0645\u0638\u0627\u0647\u0631|\u0627\u0639\u062A\u0642\u0627\u0644|\u062A\u0648\u0642\u064A\u0641/i;
+const decodeEnt = t => String(t || "").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, "&");
 const STATEMENT_RE = /minister|spokes|president|chancellor|announce|\bsaid\b|\bsays\b|confirm|statement|meeting|summit|sanction|election|parliament|council|ceasefire|negotiat|talks|\u05E9\u05E8 |\u05D3\u05D5\u05D1\u05E8|\u05D4\u05D5\u05D3\u05D9\u05E2|\u05E0\u05D0\u05DD/i;
 const STATE_TG = new Set(["tasnimnews_en", "presstv", "tass_agency", "almayadeen_en", "ajanews", "clashreport"]);
 const isFieldItem = i => !i.mainstream && i.rel !== "state" && !STATE_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase());
@@ -1226,12 +1228,12 @@ function buildSitrep(store, theaterId, llmSt, showArt) {
     const field = c.items.every(i => !i.mainstream);
     // raw = at least one short eyewitness-style post from a non-official field source; long or analytical posts count as articles
     const fieldItems = c.items.filter(isFieldItem);
-    const rawItems = fieldItems.filter(i => i.title.length <= 280 && !ANALYSIS_RE.test(i.title) && !STATEMENT_RE.test(i.title) && obsOf(i.title) && !(i.llm && (i.llm.ty === "analysis" || i.llm.ty === "noise")));
+    const rawItems = fieldItems.filter(i => i.title.length <= 280 && !ANALYSIS_RE.test(i.title) && !STATEMENT_RE.test(i.title) && !NOT_FIELD_RE.test(i.title) && obsOf(i.title) && !(i.llm && (i.llm.ty === "analysis" || i.llm.ty === "noise")));
     const allArticle = c.items.every(i => i.kind === "article");
     const ptype = rawItems.length ? "raw" : (allArticle || (!c.items.some(i => CRITICAL_RE.test(i.title)) && c.items.every(i => ANALYSIS_RE.test(i.title) || STATEMENT_RE.test(i.title))) ? "article" : (fieldItems.length && !fieldItems.some(i => i.title.length <= 280) ? "article" : "flash"));
     const firstRaw = (rawItems.length ? rawItems : c.items).slice().sort((a, b) => (a.d < b.d ? -1 : 1))[0];
     const shown = ptype === "raw" ? firstRaw : best;
-    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: shown.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, nsrc: srcs.length, srcs: srcs.slice(0, 6),
+    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: decodeEnt(shown.title), t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, nsrc: srcs.length, srcs: srcs.slice(0, 6),
       links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: shown.lat != null ? shown.lat : best.lat, lon: shown.lon != null ? shown.lon : best.lon };
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
