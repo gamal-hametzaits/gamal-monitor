@@ -777,15 +777,27 @@ function renderStream(){
   document.getElementById('streamnote').innerHTML = 'דיווחי שטח בלבד, חדש למעלה. כל דיווח בודד הוא אינדיקציה לא מאומתת.';
   markNew();
 }
+function useCached(){
+  try{
+    const c = JSON.parse(localStorage.getItem('sr_cache')||'null'); if(!c||!c.d) return false;
+    const el = Math.max(0, Math.round((Date.now()-c.at)/60000));
+    c.d.stream = c.d.stream.map(x=>({...x, age: x.age==null?null:x.age+el}));
+    STREAM = c.d; STREAM.__cached = c.at; renderStream();
+    const n = document.getElementById('streamnote'); if(n) n.innerHTML = 'אין חיבור. מוצגים דיווחים שמורים מ-'+new Date(c.at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'. מתעדכן אוטומטית כשהחיבור חוזר.';
+    return true;
+  }catch(e){ return false; }
+}
 async function loadStream(){
   try{
     const r = await fetch('/api/sitrep?theater=all'); if(!r.ok) throw 0; const d = await r.json();
-    const first = !STREAM; const prev = new Set((STREAM?STREAM.stream:[]).map(c=>c.id)); STREAM = d;
+    const first = !STREAM || STREAM.__cached; const prev = new Set((STREAM?STREAM.stream:[]).map(c=>c.id)); STREAM = d;
     window.__fresh = first ? new Set() : new Set(d.stream.filter(c=>!prev.has(c.id)).map(c=>c.id));
-        renderStream();
-  }catch(e){ if(!STREAM) document.getElementById('stream').innerHTML='<div style="padding:24px;color:var(--dim)">לא הצלחתי לטעון. מנסה שוב...</div>'; }
+    try{ localStorage.setItem('sr_cache', JSON.stringify({at:Date.now(), d:{stream:d.stream.slice(0,60), llm:d.llm}})); }catch(e){}
+    renderStream();
+  }catch(e){
+    if(!STREAM || !STREAM.__cached){ if(!useCached() && !STREAM) document.getElementById('stream').innerHTML='<div style="padding:24px;color:var(--dim)">אין חיבור ואין נתונים שמורים. מנסה שוב...</div>'; }
+  }
 }
-if(0)document.createElement('i').addEventListener('click', e=>{ const b=e.target.closest('[data-th]'); if(!b) return; TH=b.dataset.th; STREAM=null; document.getElementById('stream').innerHTML='<div class="sk"></div><div class="sk"></div>'; loadStream(); });
 document.getElementById('tiers').addEventListener('click', e=>{ const b=e.target.closest('[data-t]'); if(!b) return; TIER=b.dataset.t; document.querySelectorAll('#tiers [data-t]').forEach(x=>x.classList.toggle('on',x===b)); renderStream(); });
 document.getElementById('stream').addEventListener('click', e=>{
   const b = e.target.closest('[data-act]'); if(!b) return; const card=b.closest('[data-sid]'); const id=card.dataset.sid;
@@ -794,7 +806,7 @@ document.getElementById('stream').addEventListener('click', e=>{
   else if (b.dataset.act==='pin'){ if (PINS[id]) delete PINS[id]; else if (c) PINS[id]={c, pt:Date.now()}; savePins(); renderStream(); }
   else if (b.dataset.act==='share' && c){ const t = c.title+' ('+c.tierHe+(c.claim?', טענה':'')+')'+(c.links&&c.links[0]?' '+c.links[0].u:''); (navigator.share?navigator.share({text:t}):navigator.clipboard.writeText(t)).then(()=>{b.textContent='✓'; setTimeout(()=>b.textContent='📋',1500)}).catch(()=>{}); }
 });
-savePins(); loadStream(); let POLL=45; fetch('/api/settings').then(r=>r.json()).then(a=>{ POLL=a.settings.clientPollSec||45; if(a.settings.hideTg){ HIDE_UNV=true; try{renderFilters();}catch(e){} } }).catch(()=>{});
+savePins(); useCached(); loadStream(); let POLL=45; fetch('/api/settings').then(r=>r.json()).then(a=>{ POLL=a.settings.clientPollSec||45; if(a.settings.hideTg){ HIDE_UNV=true; try{renderFilters();}catch(e){} } }).catch(()=>{});
 let lastPoll=Date.now(); setInterval(()=>{ if(document.hidden||Date.now()-lastPoll<POLL*1000-500) return; lastPoll=Date.now(); loadStream(); load(); }, 5000);
 load();
 setInterval(()=>{ if(!document.hidden && DATA) updateBeat(); }, 15000);
