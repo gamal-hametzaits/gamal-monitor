@@ -749,7 +749,7 @@ function rawHtml(c){
   const reg=c.region||'';
   return `<div class="card2 raw" data-sid="${c.id}"><div class="rw-top"><span class="rw-t">${c.age==null?'':escH(ago(c.age))}</span>${c.obs?`<span class="rw-o">${escH(c.obs)}</span>`:''}${reg?`<span class="rw-r">📍 ${escH(reg)}</span>`:''}</div>
   <div class="rw-x" dir="auto">${escH(c.title)}</div>
-  <div class="rw-s"><bdi>${escH(src)}</bdi>${n>1?`<span class="rw-f ok">${n} מקורות מדווחים</span>`:'<span class="rw-f">לא מאומת · מקור יחיד</span>'}</div>
+  <div class="rw-s"><bdi>${escH(src)}</bdi>${n>1?`<span class="rw-f ok" title="ערוצים שונים, ייתכן שמקור משותף">${n} ערוצים · ייתכן מקור משותף</span>`:'<span class="rw-f">לא מאומת · מקור יחיד</span>'}</div>
   <div class="acts">${c.lat!=null?`<button data-act="map" data-lat="${c.lat}" data-lon="${c.lon}">🗺 במפה</button>`:''}${lk[0]?`<a href="${escH(lk[0].u)}" target="_blank" rel="noopener">🔗 מקור</a>`:''}<button class="pin ${pinned?'on':''}" data-act="pin">${pinned?'★':'☆'}</button><button data-act="share">📋</button></div></div>`;
 }
 function cardHtml(c){
