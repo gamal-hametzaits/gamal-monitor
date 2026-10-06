@@ -246,6 +246,16 @@ body{background:var(--bg);font-weight:400;letter-spacing:.005em}
 .fbtn{background:rgba(20,23,26,.9);color:var(--dim);font-weight:500}
 .fbtn.active{border-color:var(--acc);color:var(--txt)}
 #reportbtn{background:var(--panel);color:var(--acc);border:1px solid var(--acc);font-weight:600}
+
+/* softer pass: lower contrast, pastel-muted accents, rounder shapes */
+:root{--bg:#1A1E23;--panel:#21262C;--line:#313840;--txt:#DCD8CE;--dim:#9BA29C;--red:#C47F77;--orange:#CDA07B;--yellow:#D3BC88;--acc:#D3BC88;--green:#92B79E;--blue:#8FACC8;--gray:#848C87}
+.card2{margin:8px 10px;border:1px solid var(--line);border-inline-start-width:3px;border-radius:14px;background:rgba(255,255,255,.015)}
+.card2.burst{background:rgba(196,127,119,.08)}
+.card2 .acts button,.card2 .acts a,.fbtn,#reportbtn{border-radius:12px}
+.card2 .bd,.chip,#modal .badge{border-radius:8px}
+#bnav{border-top-color:var(--line)}
+.setlink{display:block;margin:12px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;color:var(--acc);text-decoration:none;font-weight:500;background:var(--panel)}
+.setlink small{display:block;color:var(--dim);font-size:12px;margin-top:2px;font-weight:400}
 </style>
 </head>
 <body data-view="feed">
@@ -268,6 +278,7 @@ body{background:var(--bg);font-weight:400;letter-spacing:.005em}
     <div id="streamnote"></div>
   </div>
   <div class="v-more">
+    <a class="setlink" href="/settings.html">⚙ הגדרות מנוע<small>מקורות, מודל, ספי מתפרצים, התראות, קצב רענון</small></a>
     <details class="raw"><summary>מבזקים וטלגרם גולמיים (ללא איחוד ודירוג)</summary><div class="v-feed-raw">
     <div class="panel-h" style="color:var(--red)">🚨 התראות מבזק · נשלחות גם לנייד <span class="tag" id="brkcount"></span></div>
     <div id="breaking"></div>
@@ -771,9 +782,9 @@ document.getElementById('stream').addEventListener('click', e=>{
   else if (b.dataset.act==='pin'){ if (PINS[id]) delete PINS[id]; else if (c) PINS[id]={c, pt:Date.now()}; savePins(); renderStream(); }
   else if (b.dataset.act==='share' && c){ const t = c.title+' ('+c.tierHe+(c.claim?', טענה':'')+')'+(c.links&&c.links[0]?' '+c.links[0].u:''); (navigator.share?navigator.share({text:t}):navigator.clipboard.writeText(t)).then(()=>{b.textContent='✓'; setTimeout(()=>b.textContent='📋',1500)}).catch(()=>{}); }
 });
-savePins(); loadStream(); setInterval(()=>{ if(!document.hidden) loadStream(); }, 45000);
+savePins(); loadStream(); let POLL=45; fetch('/api/settings').then(r=>r.json()).then(a=>{ POLL=a.settings.clientPollSec||45; if(a.settings.hideTg){ HIDE_UNV=true; try{renderFilters();}catch(e){} } }).catch(()=>{});
+let lastPoll=Date.now(); setInterval(()=>{ if(document.hidden||Date.now()-lastPoll<POLL*1000-500) return; lastPoll=Date.now(); loadStream(); load(); }, 5000);
 load();
-setInterval(load, 45000);
 setInterval(()=>{ if(!document.hidden && DATA) updateBeat(); }, 15000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) load(); });
 </script>
