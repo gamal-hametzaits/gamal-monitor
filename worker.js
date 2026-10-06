@@ -100,6 +100,127 @@ const RSS_FEEDS = [
   { url: "https://www.arabnews.com/rss.xml", name: "Arab News", me: true, flash: false },
 ];
 
+const RSS_EXTRA = [
+  { url: "https://www.i24news.tv/en/rss", name: "i24NEWS", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.haaretz.com/srv/haaretz-latest-headlines", name: "Haaretz", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.jns.org/feed/", name: "JNS", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.israelnationalnews.com/Rss.aspx?act=.1", name: "Arutz7 EN", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://www.ynetnews.com/Integration/StoryRss3082.xml", name: "Ynet EN", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://www.jpost.com/rss/rssfeedsmiddleeastnews.aspx", name: "JPost ME", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.maariv.co.il/Rss/RssFeedsTzaveAndBitachon", name: "מעריב צבא וביטחון", lang: "he", rel: "media", me: true, flash: true },
+  { url: "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2", name: "Globes", lang: "he", rel: "media", me: false, flash: false },
+  { url: "https://www.arab48.com/rss", name: "Arab 48", lang: "ar", rel: "media", me: true, flash: false },
+  { url: "https://www.aljazeera.net/rss", name: "الجزيرة", lang: "ar", rel: "media", me: true, flash: false },
+  { url: "https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9", name: "الجزيرة مباشر", lang: "ar", rel: "media", me: true, flash: true },
+  { url: "https://www.france24.com/ar/rss", name: "France24 AR", lang: "ar", rel: "media", me: true, flash: false },
+  { url: "https://www.france24.com/en/middle-east/rss", name: "France24 ME", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://english.aawsat.com/feed", name: "Asharq Al-Awsat", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.middleeastmonitor.com/feed/", name: "Middle East Monitor", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.al-monitor.com/rss", name: "Al-Monitor", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.dailysabah.com/rssFeed/world", name: "Daily Sabah", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.aa.com.tr/en/rss/default?cat=world", name: "Anadolu", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.iranintl.com/en/rss", name: "Iran International", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.radiofarda.com/api/zrqiteuuir", name: "Radio Farda", lang: "fa", rel: "media", me: true, flash: false },
+  { url: "https://www.naharnet.com/rss.xml", name: "Naharnet", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.rudaw.net/rss", name: "Rudaw", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.kurdistan24.net/en/rss", name: "Kurdistan24", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://saudigazette.com.sa/rss", name: "Saudi Gazette", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://egyptindependent.com/feed/", name: "Egypt Independent", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://yemenmonitor.com/feed", name: "Yemen Monitor", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://sana.sy/en/feed/", name: "SANA", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://tass.com/rss/v2.xml", name: "TASS", lang: "en", rel: "state", me: false, flash: true },
+  { url: "https://www.rt.com/rss/news/", name: "RT", lang: "en", rel: "state", me: false, flash: false },
+  { url: "https://meduza.io/rss/en/all", name: "Meduza", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.pravda.com.ua/eng/rss/", name: "Ukrainska Pravda", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.ukrinform.net/rss/block-lastnews", name: "Ukrinform", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://www.euronews.com/rss", name: "Euronews", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.theguardian.com/world/middleeast/rss", name: "Guardian ME", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.theguardian.com/world/rss", name: "Guardian World", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://feeds.skynews.com/feeds/rss/world.xml", name: "Sky News", lang: "en", rel: "media", me: false, flash: true },
+  { url: "https://feeds.bbci.co.uk/news/world/rss.xml", name: "BBC World", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://rss.dw.com/rdf/rss-en-world", name: "DW", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://feeds.npr.org/1004/rss.xml", name: "NPR", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml", name: "NYT Middle East", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://feeds.washingtonpost.com/rss/world", name: "Washington Post", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.scmp.com/rss/91/feed", name: "SCMP", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml", name: "Defense News", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://breakingdefense.com/feed/", name: "Breaking Defense", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.twz.com/feed", name: "The War Zone", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml", name: "Military Times", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.longwarjournal.org/feed", name: "Long War Journal", lang: "en", rel: "osint", me: true, flash: false },
+  { url: "https://www.bellingcat.com/feed/", name: "Bellingcat", lang: "en", rel: "osint", me: false, flash: false },
+  { url: "https://www.oryxspioenkop.com/feeds/posts/default", name: "Oryx", lang: "en", rel: "osint", me: false, flash: false },
+  { url: "https://understandingwar.org/feed/", name: "ISW", lang: "en", rel: "osint", me: false, flash: false },
+  { url: "https://www.fdd.org/feed/", name: "FDD", lang: "en", rel: "osint", me: true, flash: false },
+  { url: "https://israel-alma.org/feed/", name: "Alma Center", lang: "en", rel: "osint", me: true, flash: false },
+  { url: "https://www.crisisgroup.org/rss", name: "Crisis Group", lang: "en", rel: "osint", me: true, flash: false },
+  { url: "https://www.flightglobal.com/rss", name: "FlightGlobal", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://gcaptain.com/feed/", name: "gCaptain", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://splash247.com/feed/", name: "Splash247", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://therecord.media/feed", name: "The Record", lang: "en", rel: "media", me: false, flash: false },
+  { url: "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10", name: "Pentagon (DoD)", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=9&Site=945&max=10", name: "Pentagon releases", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.state.gov/rss-feed/press-releases/feed/", name: "US State Dept", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://news.un.org/feed/subscribe/en/news/region/middle-east/feed/rss.xml", name: "UN News ME", lang: "en", rel: "official", me: true, flash: false },
+  { url: "https://news.un.org/feed/subscribe/en/news/topic/peace-and-security/feed/rss.xml", name: "UN News Peace", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.iaea.org/feeds/topnews", name: "IAEA", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.idf.il/en/rss/", name: "IDF", lang: "en", rel: "official", me: true, flash: true },
+  { url: "https://www.gdacs.org/xml/rss.xml", name: "GDACS", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.timesofisrael.com/feed/", name: "Times of Israel", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://www.israelhayom.com/feed/", name: "Israel Hayom", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.kan.org.il/rss/", name: "Kan", lang: "he", rel: "media", me: true, flash: false },
+  { url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-8,00.xml", name: "Calcalist", lang: "he", rel: "media", me: false, flash: false },
+  { url: "https://english.alarabiya.net/tools/rss", name: "Al Arabiya", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.alarabiya.net/tools/rss", name: "العربية", lang: "ar", rel: "media", me: true, flash: false },
+  { url: "https://english.almayadeen.net/rss", name: "Al Mayadeen EN", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://www.almayadeen.net/rss", name: "الميادين", lang: "ar", rel: "state", me: true, flash: false },
+  { url: "https://www.newarab.com/rss", name: "The New Arab", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.tasnimnews.com/en/rss", name: "Tasnim EN", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://en.mehrnews.com/rss", name: "Mehr EN", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://en.irna.ir/rss", name: "IRNA EN", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://www.presstv.ir/rss.xml", name: "Press TV", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://www.tehrantimes.com/rss", name: "Tehran Times", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://www.trtworld.com/rss", name: "TRT World", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://kyivindependent.com/feed/", name: "Kyiv Independent", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://apnews.com/hub/middle-east?output=rss", name: "AP", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://feeds.reuters.com/Reuters/worldNews", name: "Reuters", lang: "en", rel: "media", me: true, flash: true },
+  { url: "https://www.centcom.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=808&max=10", name: "CENTCOM", lang: "en", rel: "official", me: true, flash: true },
+  { url: "https://www.nato.int/cps/en/natohq/rss.xml", name: "NATO", lang: "en", rel: "official", me: false, flash: false },
+  { url: "https://www.ukmto.org/rss", name: "UKMTO", lang: "en", rel: "official", me: true, flash: true },
+  { url: "http://nna-leb.gov.lb/en/rss", name: "NNA Lebanon", lang: "en", rel: "state", me: true, flash: false },
+  { url: "https://today.lorientlejour.com/rss", name: "L'Orient Today", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.jordantimes.com/rss.xml", name: "Jordan Times", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://english.ahram.org.eg/UI/Front/rss.aspx", name: "Ahram", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://shafaq.com/en/rss.xml", name: "Shafaq", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://www.thenationalnews.com/rss", name: "The National", lang: "en", rel: "media", me: true, flash: false },
+  { url: "https://gulfnews.com/rss", name: "Gulf News", lang: "en", rel: "media", me: true, flash: false },
+];
+// base list keeps its original entries; expand with RSS_EXTRA (deduped by url), then tag reliability
+for (const f of RSS_FEEDS) { f.lang = f.lang || (/[א-ת]/.test(f.name) ? "he" : "en"); f.rel = f.rel || "media"; }
+{ const have = new Set(RSS_FEEDS.map(f => f.url)); for (const f of RSS_EXTRA) if (!have.has(f.url)) RSS_FEEDS.push(f); }
+
+// per-run selection: flash feeds always, the rest rotate so one invocation stays under the free-tier subrequest cap
+function runCounter(slot) { return Math.floor((typeof slot === "number" ? slot : Math.floor(Date.now() / 60000)) / 5); }
+function selectFeeds(store, slot, nRot) {
+  const rc = runCounter(slot), hl = (store && store.srcHealth) || {};
+  const ok = f => { const h = hl[f.name]; return !(h && h.consec >= 6 && rc % 12 !== 0); };   // dead sources are probed 1 run in 12
+  const flash = RSS_FEEDS.filter(f => f.flash && ok(f));
+  const rest = RSS_FEEDS.filter(f => !f.flash && ok(f));
+  const picks = [];
+  for (let i = 0; i < Math.min(nRot, rest.length); i++) picks.push(rest[(rc * nRot + i) % rest.length]);
+  return flash.concat(picks);
+}
+function mergeHealth(store, hl) {
+  const s = store.srcHealth = store.srcHealth || {};
+  for (const [n, h] of Object.entries(hl)) {
+    const p = s[n] || { okN: 0, failN: 0, consec: 0 };
+    s[n] = { okN: p.okN + (h.ok ? 1 : 0), failN: p.failN + (h.ok ? 0 : 1), consec: h.ok ? 0 : p.consec + 1, last: h.t, lastOk: h.ok ? h.t : (p.lastOk || 0), n: h.ok ? h.n : (p.n || 0), newest: h.ok ? h.newest : (p.newest || 0) };
+  }
+}
+function noteHealth(hl, feed, ok, n, newestTs) {
+  hl[feed.name] = { ok, n, newest: newestTs || 0, t: Date.now() };
+}
+
 const CAMERAS = [
   { id: "kotel-aish", name: "הכותל המערבי, ירושלים", lat: 31.7767, lon: 35.2345, kind: "link", url: "https://aish.com/western-wall-page/", src: "Aish Kotel Cam", note: "עמוד שידור חי חיצוני (YouTube) · רענון רציף · אין סנפשוט מוטבע" },
   { id: "kotel-earthcam", name: "הכותל המערבי (מבט רחב), ירושלים", lat: 31.7783, lon: 35.2354, kind: "link", url: "https://www.earthcam.com/world/israel/jerusalem/?cam=jerusalem", src: "EarthCam", note: "עמוד שידור חי חיצוני · רענון רציף · אין סנפשוט מוטבע" },
@@ -270,29 +391,32 @@ async function fetchUsgs() {
 
 function unxml(t) { return t.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;|&#x27;/g, "'").replace(/&quot;/g, '"').trim(); }
 
-async function fetchRss(feed, feedOut) {
+async function fetchRss(feed, feedOut, hl) {
   try {
-    const r = await tfetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } }, 8000);
-    if (!r.ok) return [];
+    const r = await tfetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; gamal-monitor/1.0)" } }, 7000);
+    if (!r.ok) { if (hl) noteHealth(hl, feed, false, 0, 0); return []; }
     const xml = await r.text();
     const out = [];
-    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    let items = xml.match(/<item[\s>][\s\S]*?<\/item>/g) || [];
+    if (!items.length) items = xml.match(/<entry[\s>][\s\S]*?<\/entry>/g) || [];
+    let newestTs = 0;
     for (const it of items.slice(0, 15)) {
       const t = (it.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || "";
-      const ln = (it.match(/<link[^>]*>([\s\S]*?)<\/link>/) || [])[1] || "";
-      const pd = (it.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/) || [])[1] || "";
+      const ln = (it.match(/<link[^>]*>([^<]+)<\/link>/) || [])[1] || (it.match(/<link[^>]*href="([^"]+)"/) || [])[1] || "";
+      const pd = (it.match(/<(?:pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/) || [])[1] || "";
       const title = unxml(t).slice(0, 200);
       if (!title) continue;
+      const ts = Date.parse(pd);
+      if (isFinite(ts)) newestTs = Math.max(newestTs, ts);
+      if (isFinite(ts) && ts < Date.now() - 36 * 3600 * 1000) continue;   // stale entries never enter the live pipeline
       const cat = classifyText(title);
       if (!feed.me && cat === "other" && !ME_TERMS.test(title)) continue;
       const g = gazLocate(title);
       const et = rssEtype(title);
-      const ts = Date.parse(pd);
       if (!g) {
-        // new policy: no pin -> keep in ranked live feed when regional or critical; domestic noise stays out
         const region = regionOf(title);
         if (region || et || CRITICAL_RE.test(title)) feedOut.push({ id: "rssf-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified", kind: feed.flash ? "flash" : "article",
+          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified", kind: feed.flash ? "flash" : "article", rel: feed.rel, lang: feed.lang,
           region, critical: !!(et || CRITICAL_RE.test(title)) });
         continue;
       }
@@ -300,11 +424,12 @@ async function fetchRss(feed, feedOut) {
         id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
         a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
         tone: 0, place: title, ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
-        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et, kind: feed.flash ? "flash" : "article",
+        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et, kind: feed.flash ? "flash" : "article", rel: feed.rel,
       });
     }
+    if (hl) noteHealth(hl, feed, items.length > 0, items.length, newestTs);
     return out;
-  } catch { return []; }
+  } catch { if (hl) noteHealth(hl, feed, false, 0, 0); return []; }
 }
 
 function classify(code) {
@@ -560,7 +685,9 @@ async function ingestLite(env) {
     const store = await loadStore(env);
     const feedOut = [];
     const slot = Math.floor(Date.now() / 60000);
-    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(RSS_FEEDS.map(f => fetchRss(f, feedOut)))]);
+    const hl = {};
+    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, 12).map(f => fetchRss(f, feedOut, hl)))]);
+    mergeHealth(store, hl);
     const extras = tgE.concat(...rssArr);
     const seen2 = new Set(store.events.map(e => e.id));
     const freshExtras = extras.filter(e => !seen2.has(e.id));
@@ -600,12 +727,14 @@ function shortPlace(p) {
 
 const TG_LABEL_SRC = "telegram";
 const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates", "clashreport", "osint613"];
-const TG_PER_RUN = 3;
+const TG_EXTRA = ["idfofficial", "ynetalerts", "amitsegal", "IsraelWarRoom", "AlMayadeen_en", "Conflict_Monitor", "liveuamap", "tasnimnews_en", "WarTranslated", "rybar", "SaberinFa", "UkraineNow", "nexta_live", "tass_agency", "ukrpravda_news", "KyivIndependent_official"];
+const TG_PER_RUN = 6;
 let TG_DEBUG = [];
 
 function tgChannels(store) {
   if (!Array.isArray(store.tgChannels) || !store.tgChannels.length) store.tgChannels = DEFAULT_TG.slice();
-  return store.tgChannels;
+  const have = new Set(store.tgChannels);
+  return store.tgChannels.concat(TG_EXTRA.filter(h => !have.has(h)));
 }
 
 async function fetchTelegram(store, feedOut, slot) {
@@ -704,7 +833,9 @@ async function ingestInner(env) {
   store.events = store.events.filter(e => e.src !== "adsb" || !adsbIds.has(e.id));  // movers get fresh positions
   TG_DEBUG = [];
   const feedOut = [];
-  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(RSS_FEEDS.map(f => fetchRss(f, feedOut)))]);
+  const hl = {};
+  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, 10).map(f => fetchRss(f, feedOut, hl)))]);
+  mergeHealth(store, hl);
   const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
@@ -913,9 +1044,9 @@ function srcPool(store, hours, cache) {
   const cut = nowStampMinus(hours * 3600 * 1000);
   const seen = new Set(), out = [];
   function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return; seen.add(it.id); const l = cache && cache[it.id]; if (l) it.llm = l; out.push(it); }
-  for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC, kind: f.kind, crit: !!f.critical });
+  for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC && f.rel !== "state", rel: f.rel, kind: f.kind, crit: !!f.critical });
   for (const e of store.events || []) {
-    if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss", kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
+    if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss" && e.rel !== "state", rel: e.rel, kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
   }
   for (const b of store.breaking || []) add({ id: b.id, d: b.t, src: b.src || "", title: b.title, url: b.url || "", mainstream: b.tier !== "unverified", kind: b.srcKind, crit: true, brk: b.sev });
   return out;
@@ -1058,6 +1189,12 @@ export default {
       const st0 = await loadStore(env);
       const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }], st0.ntfyTopic);
       return json({ ok: true, push: r, topicSet: !!st0.ntfyTopic });
+    }
+    if (url.pathname === "/api/sources") {
+      const store = await loadStore(env), hl = store.srcHealth || {};
+      const rows = RSS_FEEDS.map(f => { const h = hl[f.name] || {}; const st = !h.last ? "untested" : (h.consec >= 6 ? "down" : h.consec > 0 ? "flaky" : (h.newest && Date.now() - h.newest > 72 * 3600 * 1000 ? "stale" : "ok")); return { name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash, status: st, ok: h.okN || 0, fail: h.failN || 0, items: h.n || 0, newestAgeMin: h.newest ? Math.round((Date.now() - h.newest) / 60000) : null }; });
+      const sum = {}; for (const r of rows) sum[r.status] = (sum[r.status] || 0) + 1;
+      return json({ rss: { total: rows.length, summary: sum, sources: rows }, telegram: { total: tgChannels(store).length, perRun: TG_PER_RUN }, note: "RSS rotates: flash feeds every run, the rest in batches, to stay under the free-tier subrequest cap" });
     }
     if (url.pathname === "/api/sitrep") {
       const store = await loadStore(env);
