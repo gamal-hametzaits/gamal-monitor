@@ -974,6 +974,11 @@ function buildSitrep(store, theaterId, llmSt) {
       links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
   });
   const w24 = nowStampMinus(24 * 3600 * 1000);
+  const stream = clusters.filter(c => c.t >= w24 && (c.crit || c.tier !== "initial" || c.n >= 2)).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
+    let lat = c.lat, lon = c.lon;
+    if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
+    return { ...c, id: hashId(c.title), lat, lon };
+  });
   const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
   const breaking = clusters.filter(c => c.age != null && c.age <= 180 && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
   const bset = new Set(breaking);
@@ -1000,7 +1005,7 @@ function buildSitrep(store, theaterId, llmSt) {
     theater: th.id, theaterHe: th.he, theaters: THEATERS.map(t => ({ id: t.id, he: t.he })),
     llm: llmStatus({ AI: llmSt.enabled }, llmSt), generated: store.updated, fastAge: lastFast, fullAge: lastFull,
     counts: { items72h: pool.length, clusters: clusters.length, breaking: breaking.length, verified: verified.length, probable: probable.length, initial: initial.length },
-    breaking, verified, probable, initial, watch,
+    breaking: breaking.map(c => ({ ...c, id: hashId(c.title) })), stream, verified, probable, initial, watch,
     rules: "מאומת: לפחות שני מקורות נפרדים, ביניהם גוף חדשות מוכר. סביר: גוף חדשות מוכר אחד או כמה ערוצי טלגרם. אינדיקציה ראשונית: ערוץ טלגרם בודד. מתפרץ: 3 מקורות או יותר על אותה ידיעה תוך 20 דקות. איחוד ידיעות נעשה לפי חפיפת מילים באותה שפה, לכן אישור בין שפות שונות לא מזוהה ויכול להחמיר את הדירוג.",
     gaps: "לא מכוסה: ספינות (AIS), תצלומי לווין טקטיים, וטוויטר ישיר. טלגרם נסרק מרשימת ערוצים סופית ולא מכל הרשת. רשימת המעקב נגזרת מהנתונים ואינה תחזית.",
     disclaimer: "ניתוח אוטומטי של מקורות פתוחים. לא אישור רשמי ולא מידע מודיעיני. דיווח לא מאומת מסומן ככזה ולא מוצג כעובדה.",
