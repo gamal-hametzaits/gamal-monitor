@@ -204,8 +204,8 @@ function runCounter(slot) { return Math.floor((typeof slot === "number" ? slot :
 function selectFeeds(store, slot, nRot) {
   const rc = runCounter(slot), hl = (store && store.srcHealth) || {};
   const ok = f => { const h = hl[f.name]; return !(h && h.consec >= 6 && rc % 12 !== 0); };   // dead sources are probed 1 run in 12
-  const flash = RSS_FEEDS.filter(f => f.flash && ok(f));
-  const rest = RSS_FEEDS.filter(f => !f.flash && ok(f));
+  const flash = RSS_FEEDS.filter(f => f.flash && ok(f) && !CFG.off.includes(f.name));
+  const rest = RSS_FEEDS.filter(f => !f.flash && ok(f) && !CFG.off.includes(f.name));
   const picks = [];
   for (let i = 0; i < Math.min(nRot, rest.length); i++) picks.push(rest[(rc * nRot + i) % rest.length]);
   return flash.concat(picks);
@@ -220,6 +220,30 @@ function mergeHealth(store, hl) {
 function noteHealth(hl, feed, ok, n, newestTs) {
   hl[feed.name] = { ok, n, newest: newestTs || 0, t: Date.now() };
 }
+
+
+// ---- engine settings (KV "settings"); every value is clamped to what the free tier can carry ----
+const DEFAULT_CFG = { off: [], tgOff: [], llm: { on: true, budget: 3000 }, burst: { minSrc: 3, winMin: 20, ageMin: 90 }, breakingWinMin: 180, streamHours: 24,
+  push: { on: true, critOnly: false }, rotation: { rss: 12, tg: 6 }, clientPollSec: 45, hideTg: false };
+const CFG_LIMITS = { "llm.budget": [0, 8000], "burst.minSrc": [2, 8], "burst.winMin": [5, 60], "burst.ageMin": [15, 240], breakingWinMin: [30, 720], streamHours: [6, 72], "rotation.rss": [4, 16], "rotation.tg": [2, 8], clientPollSec: [20, 300] };
+let CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
+function clampN(v, lo, hi, d) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
+function cleanCfg(x) {
+  x = x && typeof x === "object" ? x : {};
+  const d = DEFAULT_CFG, L = CFG_LIMITS, o = JSON.parse(JSON.stringify(d));
+  const arr = a => Array.isArray(a) ? a.filter(s => typeof s === "string").map(s => s.slice(0, 80)).slice(0, 300) : [];
+  o.off = arr(x.off); o.tgOff = arr(x.tgOff);
+  const g = (p, k) => (x[p] && typeof x[p] === "object") ? x[p][k] : undefined;
+  o.llm.on = g("llm", "on") !== false; o.llm.budget = clampN(g("llm", "budget"), ...L["llm.budget"], d.llm.budget);
+  o.burst.minSrc = clampN(g("burst", "minSrc"), ...L["burst.minSrc"], d.burst.minSrc); o.burst.winMin = clampN(g("burst", "winMin"), ...L["burst.winMin"], d.burst.winMin); o.burst.ageMin = clampN(g("burst", "ageMin"), ...L["burst.ageMin"], d.burst.ageMin);
+  o.breakingWinMin = clampN(x.breakingWinMin, ...L.breakingWinMin, d.breakingWinMin); o.streamHours = clampN(x.streamHours, ...L.streamHours, d.streamHours);
+  o.push.on = g("push", "on") !== false; o.push.critOnly = g("push", "critOnly") === true;
+  o.rotation.rss = clampN(g("rotation", "rss"), ...L["rotation.rss"], d.rotation.rss); o.rotation.tg = clampN(g("rotation", "tg"), ...L["rotation.tg"], d.rotation.tg);
+  o.clientPollSec = clampN(x.clientPollSec, ...L.clientPollSec, d.clientPollSec); o.hideTg = x.hideTg === true;
+  return o;
+}
+async function applyCfg(env) { try { const s = await env.MONITOR_KV.get("settings"); CFG = cleanCfg(s ? JSON.parse(s) : {}); } catch { CFG = cleanCfg({}); } return CFG; }
+async function sha(s) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("gamal-monitor:" + s)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, "0")).join(""); }
 
 const CAMERAS = [
   { id: "kotel-aish", name: "הכותל המערבי, ירושלים", lat: 31.7767, lon: 35.2345, kind: "link", url: "https://aish.com/western-wall-page/", src: "Aish Kotel Cam", note: "עמוד שידור חי חיצוני (YouTube) · רענון רציף · אין סנפשוט מוטבע" },
@@ -650,6 +674,8 @@ function detectBreaking(store, freshEvents, freshFeed) {
 async function pushBreaking(env, alerts, storeTopic) {
   const topic = storeTopic || env.NTFY_TOPIC;
   if (!topic) return { sent: 0, reason: "ntfy topic not set" };
+  if (!CFG.push.on) return { sent: 0, reason: "push off in settings" };
+  if (CFG.push.critOnly) { alerts = alerts.filter(a => a.sev === "critical"); if (!alerts.length) return { sent: 0, reason: "no critical alerts" }; }
   const crit = alerts.some(a => a.sev === "critical");
   const list = alerts.slice(0, 3);
   const lines = list.map(a => (a.sev === "critical" ? "\uD83D\uDEA8 " : "\u26A0\uFE0F ") + a.title + (a.region ? " \u00B7 " + a.region : "") + (a.tier === "unverified" ? " (\u05DC\u05D0 \u05DE\u05D0\u05D5\u05DE\u05EA)" : ""));
@@ -686,7 +712,7 @@ async function ingestLite(env) {
     const feedOut = [];
     const slot = Math.floor(Date.now() / 60000);
     const hl = {};
-    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, 12).map(f => fetchRss(f, feedOut, hl)))]);
+    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, CFG.rotation.rss).map(f => fetchRss(f, feedOut, hl)))]);
     mergeHealth(store, hl);
     const extras = tgE.concat(...rssArr);
     const seen2 = new Set(store.events.map(e => e.id));
@@ -728,7 +754,7 @@ function shortPlace(p) {
 const TG_LABEL_SRC = "telegram";
 const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates", "clashreport", "osint613"];
 const TG_EXTRA = ["idfofficial", "ynetalerts", "amitsegal", "IsraelWarRoom", "AlMayadeen_en", "Conflict_Monitor", "liveuamap", "tasnimnews_en", "WarTranslated", "rybar", "SaberinFa", "UkraineNow", "nexta_live", "tass_agency", "ukrpravda_news", "KyivIndependent_official"];
-const TG_PER_RUN = 6;
+
 let TG_DEBUG = [];
 
 function tgChannels(store) {
@@ -738,17 +764,17 @@ function tgChannels(store) {
 }
 
 async function fetchTelegram(store, feedOut, slot) {
-  const chans = tgChannels(store);
+  const chans = tgChannels(store).filter(h => !CFG.tgOff.includes(h));
   const out = [];
   if (!chans.length) return out;
   const picks = [];
   if (typeof slot === "number") {
     // stateless rotation: lite lane picks channels by wall-clock minute, no KV write needed
-    for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(slot + i) % chans.length]);
+    for (let i = 0; i < Math.min(CFG.rotation.tg, chans.length); i++) picks.push(chans[(slot + i) % chans.length]);
   } else {
     store.tgCursor = (store.tgCursor || 0) % chans.length;
-    for (let i = 0; i < Math.min(TG_PER_RUN, chans.length); i++) picks.push(chans[(store.tgCursor + i) % chans.length]);
-    store.tgCursor = (store.tgCursor + TG_PER_RUN) % chans.length;
+    for (let i = 0; i < Math.min(CFG.rotation.tg, chans.length); i++) picks.push(chans[(store.tgCursor + i) % chans.length]);
+    store.tgCursor = (store.tgCursor + CFG.rotation.tg) % chans.length;
   }
   for (const h of picks) {
     try {
@@ -834,7 +860,7 @@ async function ingestInner(env) {
   TG_DEBUG = [];
   const feedOut = [];
   const hl = {};
-  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, 10).map(f => fetchRss(f, feedOut, hl)))]);
+  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, Math.min(10, CFG.rotation.rss)).map(f => fetchRss(f, feedOut, hl)))]);
   mergeHealth(store, hl);
   const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
@@ -944,7 +970,8 @@ function buildReport(store) {
 // It never raises a confidence tier. If quota/binding/parse fails, rule-based tiers run alone.
 const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
 const AI_NEURON_IN = 4119 / 1e6, AI_NEURON_OUT = 34868 / 1e6;   // neurons per token (Cloudflare pricing page)
-const AI_DAILY_BUDGET = 3000;   // of the 10,000/day free allocation shared with gamal-geoint; hard stop, never paid
+function aiBudget() { return CFG.llm.on ? CFG.llm.budget : 0; }
+const AI_DAILY_BUDGET_DEFAULT = 3000;   // of the 10,000/day free allocation shared with gamal-geoint; hard stop, never paid
 const AI_BATCH = 12;
 const AI_SYS = "You label short news/OSINT posts about Middle East security. Posts may be Hebrew, English or Arabic. For each post return one JSON object. Reply with ONLY a JSON array, no prose. Fields: i (the post index), key (3 to 6 lowercase English words naming the specific event, same event in any language must get the same words, include place and actor), type (one of: report = states something happened, claim = a party says/claims/threatens something, analysis = opinion/background/commentary, noise = not a security/military/geopolitical event), sec (true if a security, military or geopolitical event in or about the Middle East, else false). Do not judge truth. Do not add facts.";
 
@@ -977,7 +1004,7 @@ async function llmEnrichItems(env, items) {
   const st = await llmState(env);
   const want = items.filter(it => it.id && it.title && !st.cache[it.id] && (CRITICAL_RE.test(it.title) || regionOf(it.title))).slice(0, AI_BATCH);
   if (!want.length) return { skipped: "nothing-new" };
-  if (st.used >= AI_DAILY_BUDGET) return { skipped: "budget", used: st.used };
+  if (st.used >= aiBudget()) return { skipped: "budget", used: st.used };
   const payload = want.map((it, i) => ({ i, s: String(it.src || "").slice(0, 24), t: String(it.title).slice(0, 220) }));
   const prompt = JSON.stringify(payload);
   let outcome = {};
@@ -1001,7 +1028,7 @@ async function llmEnrichItems(env, items) {
     }
   } catch (e) {
     st.errors++; st.lastErr = String(e && e.message || e).slice(0, 80); outcome = { error: st.lastErr };
-    if (/quota|limit|neuron|capacity|4006|429/i.test(st.lastErr)) st.used = Math.max(st.used, AI_DAILY_BUDGET);   // stop for the day
+    if (/quota|limit|neuron|capacity|4006|429/i.test(st.lastErr)) st.used = Math.max(st.used, aiBudget());   // stop for the day
   }
   const cut = nowStampMinus(48 * 3600 * 1000);
   for (const k of Object.keys(st.cache)) if (st.cache[k].t < cut) delete st.cache[k];
@@ -1010,7 +1037,7 @@ async function llmEnrichItems(env, items) {
   return outcome;
 }
 function llmStatus(env, st) {
-  return { enabled: !!env.AI, model: AI_MODEL, usedToday: st.used || 0, budget: AI_DAILY_BUDGET, calls: st.calls || 0, errors: st.errors || 0, lastErr: st.lastErr || "", exhausted: (st.used || 0) >= AI_DAILY_BUDGET };
+  return { enabled: !!env.AI, model: AI_MODEL, usedToday: st.used || 0, budget: aiBudget(), calls: st.calls || 0, errors: st.errors || 0, lastErr: st.lastErr || "", exhausted: (st.used || 0) >= aiBudget() };
 }
 
 // ---- Situation report v2: tiered by confidence, per theater, burst-aware ----
@@ -1094,7 +1121,7 @@ function buildSitrep(store, theaterId, llmSt) {
     const llmMerged = c.items.length - ruleItems.length;
     const newest = c.items[0], oldest = c.items[c.items.length - 1];
     const srcs = Array.from(new Set(c.items.map(i => i.src)));
-    const burst = srcs.length >= 3 && (stampMsOf(newest.d) - stampMsOf(oldest.d)) <= 20 * 60000 && ageMin(newest.d) <= 90;
+    const burst = srcs.length >= CFG.burst.minSrc && (stampMsOf(newest.d) - stampMsOf(oldest.d)) <= CFG.burst.winMin * 60000 && ageMin(newest.d) <= CFG.burst.ageMin;
     const txt = c.items.map(i => i.title).join(" ");
     const labeled = c.items.filter(i => i.llm);
     const llmNoise = labeled.length > 0 && labeled.every(i => i.llm.ty === "noise" || i.llm.ty === "analysis" || !i.llm.s);
@@ -1104,14 +1131,14 @@ function buildSitrep(store, theaterId, llmSt) {
     return { title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, srcs: srcs.slice(0, 6),
       links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
   });
-  const w24 = nowStampMinus(24 * 3600 * 1000);
+  const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
   const stream = clusters.filter(c => c.t >= w24 && (c.crit || c.tier !== "initial" || c.n >= 2)).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
     let lat = c.lat, lon = c.lon;
     if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
     return { ...c, id: hashId(c.title), lat, lon };
   });
   const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
-  const breaking = clusters.filter(c => c.age != null && c.age <= 180 && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
+  const breaking = clusters.filter(c => c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
   const bset = new Set(breaking);
   const rest = clusters.filter(c => !bset.has(c) && c.t >= w24 && (c.crit || c.n >= 2 || c.tier !== "initial"));
   const byTier = k => rest.filter(c => c.tier === k).sort((a, b) => (a.t < b.t ? 1 : -1));
@@ -1157,6 +1184,7 @@ function sitrepText(r) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    await applyCfg(env);
     function stampMs(s) { return s && s.length >= 14 ? Date.parse(s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8)+"T"+s.slice(8,10)+":"+s.slice(10,12)+":"+s.slice(12,14)+"Z") : 0; }
     if (url.pathname === "/api/data") {
       const store = await loadStore(env);
@@ -1190,18 +1218,40 @@ export default {
       const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }], st0.ntfyTopic);
       return json({ ok: true, push: r, topicSet: !!st0.ntfyTopic });
     }
+    if (url.pathname === "/api/settings") {
+      const raw = await env.MONITOR_KV.get("settings");
+      const pinH = await env.MONITOR_KV.get("settingsPin");
+      if (request.method !== "POST") return json({ settings: CFG, defaults: DEFAULT_CFG, limits: CFG_LIMITS, pinSet: !!pinH, rss: RSS_FEEDS.map(f => ({ name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash })), tg: tgChannels(await loadStore(env)), freeTier: { aiNeuronsPerDay: 10000, workerSubrequests: 50 } });
+      let b; try { b = await request.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      const pin = String(b.pin || "");
+      if (pin.length < 4 || pin.length > 64) return json({ ok: false, error: "pin 4-64 chars" }, 400);
+      const lock = JSON.parse((await env.MONITOR_KV.get("settingsLock")) || "{}");
+      if (lock.until && Date.now() < lock.until) return json({ ok: false, error: "locked", retryMin: Math.ceil((lock.until - Date.now()) / 60000) }, 429);
+      const h = await sha(pin);
+      if (!pinH) { await env.MONITOR_KV.put("settingsPin", h); }
+      else if (pinH !== h) {
+        const n = (lock.n || 0) + 1;
+        await env.MONITOR_KV.put("settingsLock", JSON.stringify(n >= 5 ? { n: 0, until: Date.now() + 15 * 60000 } : { n }));
+        return json({ ok: false, error: "wrong pin" }, 403);
+      }
+      await env.MONITOR_KV.put("settingsLock", "{}");
+      if (b.newPin) { const np = String(b.newPin); if (np.length >= 4 && np.length <= 64) await env.MONITOR_KV.put("settingsPin", await sha(np)); }
+      if (b.settings) { CFG = cleanCfg(b.settings); await env.MONITOR_KV.put("settings", JSON.stringify(CFG)); }
+      if (b.reset) { CFG = cleanCfg({}); await env.MONITOR_KV.put("settings", JSON.stringify(CFG)); }
+      return json({ ok: true, settings: CFG, firstSetup: !pinH });
+    }
     if (url.pathname === "/api/sources") {
       const store = await loadStore(env), hl = store.srcHealth || {};
       const rows = RSS_FEEDS.map(f => { const h = hl[f.name] || {}; const st = !h.last ? "untested" : (h.consec >= 6 ? "down" : h.consec > 0 ? "flaky" : (h.newest && Date.now() - h.newest > 72 * 3600 * 1000 ? "stale" : "ok")); return { name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash, status: st, ok: h.okN || 0, fail: h.failN || 0, items: h.n || 0, newestAgeMin: h.newest ? Math.round((Date.now() - h.newest) / 60000) : null }; });
       const sum = {}; for (const r of rows) sum[r.status] = (sum[r.status] || 0) + 1;
-      return json({ rss: { total: rows.length, summary: sum, sources: rows }, telegram: { total: tgChannels(store).length, perRun: TG_PER_RUN }, note: "RSS rotates: flash feeds every run, the rest in batches, to stay under the free-tier subrequest cap" });
+      return json({ rss: { total: rows.length, summary: sum, sources: rows }, telegram: { total: tgChannels(store).length, perRun: CFG.rotation.tg }, note: "RSS rotates: flash feeds every run, the rest in batches, to stay under the free-tier subrequest cap" });
     }
     if (url.pathname === "/api/sitrep") {
       const store = await loadStore(env);
       if (!store.lastFast || Date.now() - stampMs(store.lastFast) > 3 * 60 * 1000) ctx.waitUntil(ingestLite(env));
       const lst = await llmState(env); lst.enabled = !!env.AI;
       const r = buildSitrep(store, url.searchParams.get("theater") || "all", lst);
-      if (env.AI && lst.used < AI_DAILY_BUDGET) {   // backfill labels for recent uncovered reports (bounded by the daily budget)
+      if (env.AI && lst.used < aiBudget()) {   // backfill labels for recent uncovered reports (bounded by the daily budget)
         const unl = srcPool(store, 6, lst.cache).filter(i => !i.llm).slice(0, AI_BATCH);
         if (unl.length) ctx.waitUntil(llmEnrichItems(env, unl));
       }
@@ -1249,6 +1299,6 @@ export default {
     return env.ASSETS.fetch(request);
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(ingest(env));
+    ctx.waitUntil(applyCfg(env).then(() => ingest(env)));
   },
 };
