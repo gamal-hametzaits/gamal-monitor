@@ -770,8 +770,12 @@ async function ingestLite(env) {
     store.events = store.events.concat(freshExtras);
     store.feed = (store.feed || []).concat(freshFeed);
     store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => ((KINDW[a.kind] != null ? KINDW[a.kind] : 1) - (KINDW[b.kind] != null ? KINDW[b.kind] : 1)) || (a.d < b.d ? 1 : -1)).slice(0, 150);
-    const heartbeatDue = !store.lastFast || store.lastFast < nowStampMinus(4 * 60 * 1000);
-    if (!freshExtras.length && !freshFeed.length && !newAlerts.length && !heartbeatDue) {
+    // KV free tier allows ~1000 puts/day: write at most every 4 min (breaking alerts bypass after 90 s), heartbeat every 20 min
+    const sinceFast = store.lastFast ? Date.now() - stampMs(store.lastFast) : 1e12;
+    const hasNew = freshExtras.length || freshFeed.length || newAlerts.length;
+    const heartbeatDue = sinceFast > 20 * 60 * 1000;
+    const writeOk = hasNew && (sinceFast > 4 * 60 * 1000 || (newAlerts.length && sinceFast > 90 * 1000));
+    if (!writeOk && !heartbeatDue) {
       return { ok: true, lite: true, added: 0, feedAdded: 0, alerts: 0, pushed: 0, skippedWrite: true };
     }
     store.events = store.events.filter(e => e.lat != null && e.prec !== "unknown");
@@ -976,6 +980,7 @@ async function ingestInner(env) {
   const geocKeys = Object.keys(store.geoc);
   if (geocKeys.length > 2000) { for (const k of geocKeys.slice(0, geocKeys.length - 2000)) delete store.geoc[k]; }
 
+  if (!batch.length && store.updated && Date.now() - stampMs(store.updated) < 12 * 60 * 1000) return { ok: true, skippedWrite: true, note: "no new GDELT file" };
   store.updated = nowStamp();
   await env.MONITOR_KV.put("store", JSON.stringify(store));
   const precCount = { city: 0, adm1: 0, country: 0, pending: 0, unknown: 0 };
@@ -1109,7 +1114,7 @@ async function llmEnrichItems(env, items) {
   const cut = nowStampMinus(48 * 3600 * 1000);
   for (const k of Object.keys(st.cache)) if (st.cache[k].t < cut) delete st.cache[k];
   const keys = Object.keys(st.cache); if (keys.length > 500) for (const k of keys.slice(0, keys.length - 500)) delete st.cache[k];
-  try { await env.MONITOR_KV.put("llmstate", JSON.stringify(st)); } catch {}
+  if (!globalThis.__llmPutAt || Date.now() - globalThis.__llmPutAt > 5 * 60 * 1000) { globalThis.__llmPutAt = Date.now(); try { await env.MONITOR_KV.put("llmstate", JSON.stringify(st)); } catch {} }
   return outcome;
 }
 function llmStatus(env, st) {
