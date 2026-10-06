@@ -771,7 +771,7 @@ async function ingestLite(env) {
     store.feed = (store.feed || []).concat(freshFeed);
     store.feed = store.feed.filter(f => f.d >= nowStampMinus(36 * 3600 * 1000)).sort((a, b) => ((KINDW[a.kind] != null ? KINDW[a.kind] : 1) - (KINDW[b.kind] != null ? KINDW[b.kind] : 1)) || (a.d < b.d ? 1 : -1)).slice(0, 150);
     // KV free tier allows ~1000 puts/day: write at most every 4 min (breaking alerts bypass after 90 s), heartbeat every 20 min
-    const sinceFast = store.lastFast ? Date.now() - stampMs(store.lastFast) : 1e12;
+    const sinceFast = store.lastFast ? Date.now() - stampMsOf(store.lastFast) : 1e12;
     const hasNew = freshExtras.length || freshFeed.length || newAlerts.length;
     const heartbeatDue = sinceFast > 20 * 60 * 1000;
     const writeOk = hasNew && (sinceFast > 4 * 60 * 1000 || (newAlerts.length && sinceFast > 90 * 1000));
@@ -980,7 +980,7 @@ async function ingestInner(env) {
   const geocKeys = Object.keys(store.geoc);
   if (geocKeys.length > 2000) { for (const k of geocKeys.slice(0, geocKeys.length - 2000)) delete store.geoc[k]; }
 
-  if (!batch.length && store.updated && Date.now() - stampMs(store.updated) < 12 * 60 * 1000) return { ok: true, skippedWrite: true, note: "no new GDELT file" };
+  if (!batch.length && store.updated && Date.now() - stampMsOf(store.updated) < 12 * 60 * 1000) return { ok: true, skippedWrite: true, note: "no new GDELT file" };
   store.updated = nowStamp();
   await env.MONITOR_KV.put("store", JSON.stringify(store));
   const precCount = { city: 0, adm1: 0, country: 0, pending: 0, unknown: 0 };
