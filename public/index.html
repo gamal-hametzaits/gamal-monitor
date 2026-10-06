@@ -477,7 +477,7 @@ async function loadSitrep(){
     box.innerHTML = srSec('🔥 מתפרץ עכשיו (3 שעות אחרונות)', d.breaking)
       + srSec('מאומת', d.verified, '24 שעות') + srSec('סביר', d.probable, '24 שעות') + srSec('עדיין לא מאומת', d.initial, 'דיווחי טלגרם בודדים')
       + `<div class="sec"><h4>מעקב 24-72 שעות <small>נגזר מהנתונים, לא תחזית</small></h4>${d.watch.map(w=>`<div class="it">${esc(w)}</div>`).join('')}</div>`
-      + `<div class="rules">${esc(d.rules)}</div><div class="gaps">${esc(d.gaps)}<br>${esc(d.disclaimer)}</div>`;
+      + `<div class="rules">${esc(d.rules)}<br><b>מודל עזר:</b> ${d.llm.enabled?(d.llm.exhausted?'מכסת היום נגמרה, דירוג לפי כללים בלבד':'פעיל · '+d.llm.usedToday+' מתוך '+d.llm.budget+' נוירונים היום · '+d.llm.calls+' קריאות'+(d.llm.errors?' · '+d.llm.errors+' שגיאות':'')):'כבוי, דירוג לפי כללים בלבד'} (המודל מאחד ידיעות בין שפות ומסווג טענה/עובדה. הוא לא מעלה דירוג ולא מאמת.)</div><div class="gaps">${esc(d.gaps)}<br>${esc(d.disclaimer)}</div>`;
     if(!d.breaking.length && !d.verified.length && !d.probable.length && !d.initial.length) box.innerHTML = '<div class="line">אין כרגע דיווחים רלוונטיים בזירה הזו ב-72 השעות האחרונות במקורות שלנו.</div>'+box.innerHTML;
   }catch(e){ box.innerHTML = '<div class="line">שגיאה בטעינת הדוח. נסה לרענן.</div>'; }
 }
