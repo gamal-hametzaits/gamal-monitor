@@ -91,6 +91,7 @@ async function load() {
     num("poll", S.clientPollSec, "רענון המסך (שניות)", "בטלפון. פחות = יותר סוללה ונתונים.", LIM.clientPollSec);
   $("ui").innerHTML = sw("hideTg", S.hideTg, "הסתר פריטי טלגרם בלבד", "מציג רק פריטים שמקור חדשותי דיווח עליהם. יהיה פחות מהיר.");
   $("quiet").innerHTML = sw("qOn", S.push.quiet.on, "השתק התראות לא קריטיות", "בשעות שבהן אתה ישן. קריטי עדיין נשלח. שעון ירושלים.") + num("qFrom", S.push.quiet.from, "מתחיל (שעה)", "", [0, 23]) + num("qTo", S.push.quiet.to, "נגמר (שעה)", "", [0, 23]);
+  $("ui").innerHTML += sw("showArticles", S.showArticles, "הצג מאמרים וניתוחים", "כבוי כברירת מחדל: המסך הראשי מציג דיווחי שטח גולמיים בלבד. הדלקה מחזירה כתבות וניתוחים לזרם.");
   $("ui").innerHTML += sw("fieldFirst", S.fieldFirst, "העדף דיווחי שטח", "מציג גם דיווחי שטח בודדים עם מיקום, לא רק כאלה שאושרו. נשארים מסומנים כלא מאומתים.");
   $("field").innerHTML = sw("mastoOn", S.mastoOn, "מסטודון", "פוסטים ציבוריים לפי תגיות. רק פוסטים שמתארים אירוע ומציינים מקום. מסוננים בוטים, גיוס כספים ושיתופי קישורים.") + num("rotMasto", S.rotation.masto, "תגיות מסטודון לכל ריצה", "", LIM["rotation.masto"]);
   $("mTags").value = (S.mastoTags || []).join(", "); $("watch").value = (S.watch || []).join(", "); $("mute").value = (S.mute || []).join(", ");
@@ -116,7 +117,7 @@ function collect() {
   return { off: [...document.querySelectorAll("[data-rss]")].filter(x => !x.checked).map(x => x.dataset.rss), tgOff: [...document.querySelectorAll("[data-tg]")].filter(x => !x.checked).map(x => x.dataset.tg),
     llm: { on: c("llmOn"), budget: v("llmBudget") }, burst: { minSrc: v("bMin"), winMin: v("bWin"), ageMin: v("bAge") }, breakingWinMin: v("brkWin"), streamHours: v("strH"),
     push: { on: c("pushOn"), critOnly: c("pushCrit") }, rotation: { rss: v("rotRss"), tg: v("rotTg") }, clientPollSec: v("poll"), hideTg: c("hideTg"),
-    fieldFirst: c("fieldFirst"), mastoOn: c("mastoOn"), rotation: { rss: v("rotRss"), tg: v("rotTg"), masto: v("rotMasto") },
+    fieldFirst: c("fieldFirst"), showArticles: c("showArticles"), mastoOn: c("mastoOn"), rotation: { rss: v("rotRss"), tg: v("rotTg"), masto: v("rotMasto") },
     mastoTags: split($("mTags").value), watch: split($("watch").value), mute: split($("mute").value), customTg: S.customTg || [], customRss: S.customRss || [],
     relOv: relOv(), push: { on: c("pushOn"), critOnly: c("pushCrit"), quiet: { on: c("qOn"), from: v("qFrom"), to: v("qTo") } } };
 }
