@@ -12,3 +12,6 @@ crons = ["*/5 * * * *"]
 [[kv_namespaces]]
 binding = "MONITOR_KV"
 id = "b2c010a816144ff4b05eac560b38992d"
+
+[ai]
+binding = "AI"

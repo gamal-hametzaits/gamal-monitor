@@ -585,7 +585,9 @@ async function ingestLite(env) {
     store.events = store.events.filter(e => e.d >= nowStampMinus(26 * 3600 * 1000)).sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, MAX_EVENTS);
     store.lastFast = nowStamp();
     await env.MONITOR_KV.put("store", JSON.stringify(store));
-    return { ok: true, lite: true, added: freshExtras.length, feedAdded: freshFeed.length, alerts: newAlerts.length, pushed: push.sent, pushInfo: push.status || push.reason || push.error || "", updated: store.lastFast };
+    let llm = null;
+    try { llm = await llmEnrichItems(env, freshFeed.map(f => ({ id: f.id, src: f.a1, title: f.title })).concat(freshExtras.filter(e => e.src === "rss" || e.src === TG_LABEL_SRC).map(e => ({ id: e.id, src: e.a1, title: e.place })))); } catch {}
+    return { ok: true, lite: true, llm, added: freshExtras.length, feedAdded: freshFeed.length, alerts: newAlerts.length, pushed: push.sent, pushInfo: push.status || push.reason || push.error || "", updated: store.lastFast };
   } catch (e) { return { ok: false, lite: true, error: String(e && e.message || e).slice(0, 200) }; }
 }
 
@@ -806,6 +808,80 @@ function buildReport(store) {
   };
 }
 
+// ---- LLM assist (Cloudflare Workers AI, free allocation only) ----
+// Used ONLY for: cross-language story keys, claim/fact/analysis typing, noise filtering.
+// It never raises a confidence tier. If quota/binding/parse fails, rule-based tiers run alone.
+const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
+const AI_NEURON_IN = 4119 / 1e6, AI_NEURON_OUT = 34868 / 1e6;   // neurons per token (Cloudflare pricing page)
+const AI_DAILY_BUDGET = 3000;   // of the 10,000/day free allocation shared with gamal-geoint; hard stop, never paid
+const AI_BATCH = 12;
+const AI_SYS = "You label short news/OSINT posts about Middle East security. Posts may be Hebrew, English or Arabic. For each post return one JSON object. Reply with ONLY a JSON array, no prose. Fields: i (the post index), key (3 to 6 lowercase English words naming the specific event, same event in any language must get the same words, include place and actor), type (one of: report = states something happened, claim = a party says/claims/threatens something, analysis = opinion/background/commentary, noise = not a security/military/geopolitical event), sec (true if a security, military or geopolitical event in or about the Middle East, else false). Do not judge truth. Do not add facts.";
+
+function aiDay() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
+async function llmState(env) {
+  let st = null;
+  try { const s = await env.MONITOR_KV.get("llmstate"); if (s) st = JSON.parse(s); } catch {}
+  if (!st || typeof st !== "object") st = {};
+  if (st.day !== aiDay()) { st.day = aiDay(); st.used = 0; st.calls = 0; st.errors = 0; st.items = 0; }
+  st.cache = st.cache && typeof st.cache === "object" ? st.cache : {};
+  return st;
+}
+function llmParse(txt, n) {
+  const m = String(txt || "").match(/\[[\s\S]*\]/);
+  if (!m) return null;
+  let arr; try { arr = JSON.parse(m[0]); } catch { return null; }
+  if (!Array.isArray(arr)) return null;
+  const out = {};
+  for (const o of arr) {
+    if (!o || typeof o.i !== "number" || o.i < 0 || o.i >= n) continue;
+    const key = String(o.key || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+    const type = ["report", "claim", "analysis", "noise"].includes(o.type) ? o.type : "report";
+    if (!key || key.split(" ").length < 2) continue;
+    out[o.i] = { k: key, ty: type, s: o.sec === false ? 0 : 1 };
+  }
+  return out;
+}
+async function llmEnrichItems(env, items) {
+  if (!env.AI) return { skipped: "no-binding" };
+  const st = await llmState(env);
+  const want = items.filter(it => it.id && it.title && !st.cache[it.id] && (CRITICAL_RE.test(it.title) || regionOf(it.title))).slice(0, AI_BATCH);
+  if (!want.length) return { skipped: "nothing-new" };
+  if (st.used >= AI_DAILY_BUDGET) return { skipped: "budget", used: st.used };
+  const payload = want.map((it, i) => ({ i, s: String(it.src || "").slice(0, 24), t: String(it.title).slice(0, 220) }));
+  const prompt = JSON.stringify(payload);
+  let outcome = {};
+  try {
+    const res = await Promise.race([
+      env.AI.run(AI_MODEL, { messages: [{ role: "system", content: AI_SYS }, { role: "user", content: prompt }], max_tokens: 90 * want.length, temperature: 0 }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("ai-timeout")), 12000)),
+    ]);
+    const txt = typeof res === "string" ? res : (res && (res.response || (res.result && res.result.response))) || "";
+    const u = res && res.usage;
+    const inTok = u && u.prompt_tokens ? u.prompt_tokens : Math.ceil((AI_SYS.length + prompt.length) / 3);
+    const outTok = u && u.completion_tokens ? u.completion_tokens : Math.ceil(String(txt).length / 3);
+    st.used += Math.ceil(inTok * AI_NEURON_IN * 1e0 + outTok * AI_NEURON_OUT);
+    st.calls++;
+    const parsed = llmParse(typeof txt === "object" ? JSON.stringify(txt) : txt, want.length);
+    if (!parsed) { st.errors++; st.lastErr = "bad-json"; outcome = { error: "bad-json" }; }
+    else {
+      const ts = nowStamp(); let n = 0;
+      for (const [i, v] of Object.entries(parsed)) { st.cache[want[i].id] = { ...v, t: ts }; n++; }
+      st.items += n; outcome = { labeled: n, of: want.length };
+    }
+  } catch (e) {
+    st.errors++; st.lastErr = String(e && e.message || e).slice(0, 80); outcome = { error: st.lastErr };
+    if (/quota|limit|neuron|capacity|4006|429/i.test(st.lastErr)) st.used = Math.max(st.used, AI_DAILY_BUDGET);   // stop for the day
+  }
+  const cut = nowStampMinus(48 * 3600 * 1000);
+  for (const k of Object.keys(st.cache)) if (st.cache[k].t < cut) delete st.cache[k];
+  const keys = Object.keys(st.cache); if (keys.length > 500) for (const k of keys.slice(0, keys.length - 500)) delete st.cache[k];
+  try { await env.MONITOR_KV.put("llmstate", JSON.stringify(st)); } catch {}
+  return outcome;
+}
+function llmStatus(env, st) {
+  return { enabled: !!env.AI, model: AI_MODEL, usedToday: st.used || 0, budget: AI_DAILY_BUDGET, calls: st.calls || 0, errors: st.errors || 0, lastErr: st.lastErr || "", exhausted: (st.used || 0) >= AI_DAILY_BUDGET };
+}
+
 // ---- Situation report v2: tiered by confidence, per theater, burst-aware ----
 const THEATERS = [
   { id: "all", he: "הכל" },
@@ -833,10 +909,10 @@ function srSim(a, b) {
 function stampMsOf(s) { return s && s.length >= 14 ? Date.parse(s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8)+"T"+s.slice(8,10)+":"+s.slice(10,12)+":"+s.slice(12,14)+"Z") : 0; }
 function ageMin(s) { const m = stampMsOf(s); return m ? Math.max(0, Math.round((Date.now() - m) / 60000)) : null; }
 
-function srcPool(store, hours) {
+function srcPool(store, hours, cache) {
   const cut = nowStampMinus(hours * 3600 * 1000);
   const seen = new Set(), out = [];
-  function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return; seen.add(it.id); out.push(it); }
+  function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return; seen.add(it.id); const l = cache && cache[it.id]; if (l) it.llm = l; out.push(it); }
   for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC, kind: f.kind, crit: !!f.critical });
   for (const e of store.events || []) {
     if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss", kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
@@ -845,14 +921,21 @@ function srcPool(store, hours) {
   return out;
 }
 
+function keyTok(k) { return new Set(String(k || "").split(" ").filter(w => w.length >= 3)); }
 function clusterItems(items) {
   items.sort((a, b) => (a.d < b.d ? 1 : -1));
   const cl = [];
   for (const it of items) {
     it.tok = srTokens(it.title);
+    it.via = "rule";
     let hit = null;
     for (const c of cl) if (srSim(it.tok, c.tok) >= 0.5) { hit = c; break; }
+    if (!hit && it.llm && it.llm.k) {
+      const kt = keyTok(it.llm.k);
+      for (const c of cl) { if (!c.kt || c.kt.size < 2) continue; let inter = 0; for (const x of kt) if (c.kt.has(x)) inter++; if (inter >= 3 || (kt.size && inter / Math.min(kt.size, c.kt.size) >= 0.75 && inter >= 2)) { hit = c; it.via = "llm"; break; } }
+    }
     if (!hit) { hit = { items: [], tok: new Set(it.tok) }; cl.push(hit); }
+    if (it.llm && it.llm.k && !hit.kt) hit.kt = keyTok(it.llm.k);
     hit.items.push(it);
     for (const x of it.tok) hit.tok.add(x);
   }
@@ -870,19 +953,24 @@ function tierOf(c) {
 
 function best0(c) { return c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0]; }
 
-function buildSitrep(store, theaterId) {
+function buildSitrep(store, theaterId, llmSt) {
+  llmSt = llmSt || { cache: {} };
   const th = THEATERS.find(t => t.id === theaterId) || THEATERS[0];
-  const pool = srcPool(store, 72).filter(i => th.re ? th.re.test(i.title) : true);
+  const pool = srcPool(store, 72, llmSt.cache).filter(i => th.re ? th.re.test(i.title) : true);
   const clusters = clusterItems(pool).map(c => {
-    const t = tierOf(c);
+    const ruleItems = c.items.filter(i => i.via !== "llm");
+    const t = tierOf({ items: ruleItems });
+    const llmMerged = c.items.length - ruleItems.length;
     const newest = c.items[0], oldest = c.items[c.items.length - 1];
     const srcs = Array.from(new Set(c.items.map(i => i.src)));
     const burst = srcs.length >= 3 && (stampMsOf(newest.d) - stampMsOf(oldest.d)) <= 20 * 60000 && ageMin(newest.d) <= 90;
     const txt = c.items.map(i => i.title).join(" ");
-    const crit = c.items.some(i => CRITICAL_RE.test(i.title)) && !c.items.some(i => SR_NOISE.test(i.title)) && (th.id === "europe" || !NON_ME_RE.test(best0(c).title) || ME_TERMS.test(txt));
-    const claim = SR_CLAIM.test(best0(c).title);
+    const labeled = c.items.filter(i => i.llm);
+    const llmNoise = labeled.length > 0 && labeled.every(i => i.llm.ty === "noise" || i.llm.ty === "analysis" || !i.llm.s);
+    const crit = !llmNoise && c.items.some(i => CRITICAL_RE.test(i.title)) && !c.items.some(i => SR_NOISE.test(i.title)) && (th.id === "europe" || !NON_ME_RE.test(best0(c).title) || ME_TERMS.test(txt));
+    const claim = SR_CLAIM.test(best0(c).title) || (best0(c).llm && best0(c).llm.ty === "claim");
     const best = c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0];
-    return { title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, n: c.items.length, srcs: srcs.slice(0, 6),
+    return { title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, srcs: srcs.slice(0, 6),
       links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
   });
   const w24 = nowStampMinus(24 * 3600 * 1000);
@@ -910,7 +998,7 @@ function buildSitrep(store, theaterId) {
   const lastFast = ageMin(store.lastFast), lastFull = ageMin(store.updated);
   return {
     theater: th.id, theaterHe: th.he, theaters: THEATERS.map(t => ({ id: t.id, he: t.he })),
-    generated: store.updated, fastAge: lastFast, fullAge: lastFull,
+    llm: llmStatus({ AI: llmSt.enabled }, llmSt), generated: store.updated, fastAge: lastFast, fullAge: lastFull,
     counts: { items72h: pool.length, clusters: clusters.length, breaking: breaking.length, verified: verified.length, probable: probable.length, initial: initial.length },
     breaking, verified, probable, initial, watch,
     rules: "מאומת: לפחות שני מקורות נפרדים, ביניהם גוף חדשות מוכר. סביר: גוף חדשות מוכר אחד או כמה ערוצי טלגרם. אינדיקציה ראשונית: ערוץ טלגרם בודד. מתפרץ: 3 מקורות או יותר על אותה ידיעה תוך 20 דקות. איחוד ידיעות נעשה לפי חפיפת מילים באותה שפה, לכן אישור בין שפות שונות לא מזוהה ויכול להחמיר את הדירוג.",
@@ -922,9 +1010,10 @@ function buildSitrep(store, theaterId) {
 function sitrepText(r) {
   const L = [];
   L.push(`דוח מצב · ${r.theaterHe}`);
-  const sec = (name, arr) => { if (!arr.length) return; L.push("", name); for (const c of arr) L.push(`- ${c.burst ? "[מתפרץ] " : ""}${c.title.slice(0, 160)} (${c.tierHe}${c.claim ? ", טענה בלבד" : ""}, לפני ${c.age} ד', ${c.srcs.join(", ")})${c.links[0] ? " " + c.links[0].u : ""}`); };
+  const sec = (name, arr) => { if (!arr.length) return; L.push("", name); for (const c of arr) L.push(`- ${c.burst ? "[מתפרץ] " : ""}${c.title.slice(0, 160)} (${c.tierHe}${c.llmMerged ? ", איחוד מודל" : ""}${c.claim ? ", טענה בלבד" : ""}, לפני ${c.age} ד', ${c.srcs.join(", ")})${c.links[0] ? " " + c.links[0].u : ""}`); };
   sec("מתפרץ עכשיו", r.breaking); sec("מאומת", r.verified); sec("סביר", r.probable); sec("עדיין לא מאומת", r.initial);
   L.push("", "מעקב 24-72 שעות"); for (const w of r.watch) L.push("- " + w);
+  L.push("", r.llm && r.llm.enabled && !r.llm.exhausted ? "מודל עזר פעיל לאיחוד ידיעות ולסיווג טענה/עובדה. הוא אינו מעלה דירוג." : "מודל העזר כבוי או שמכסת היום נגמרה, הדירוג לפי כללים בלבד.");
   L.push("", r.gaps, r.disclaimer);
   return L.join("\n");
 }
@@ -968,7 +1057,12 @@ export default {
     if (url.pathname === "/api/sitrep") {
       const store = await loadStore(env);
       if (!store.lastFast || Date.now() - stampMs(store.lastFast) > 3 * 60 * 1000) ctx.waitUntil(ingestLite(env));
-      const r = buildSitrep(store, url.searchParams.get("theater") || "all");
+      const lst = await llmState(env); lst.enabled = !!env.AI;
+      const r = buildSitrep(store, url.searchParams.get("theater") || "all", lst);
+      if (env.AI && lst.used < AI_DAILY_BUDGET) {   // backfill labels for recent uncovered reports (bounded by the daily budget)
+        const unl = srcPool(store, 6, lst.cache).filter(i => !i.llm).slice(0, AI_BATCH);
+        if (unl.length) ctx.waitUntil(llmEnrichItems(env, unl));
+      }
       if (url.searchParams.get("format") === "text") return new Response(sitrepText(r), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
       return json(r);
     }
