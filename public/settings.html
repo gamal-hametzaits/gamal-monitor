@@ -9,7 +9,13 @@ body{background:var(--bg);color:var(--txt);font-family:Heebo,sans-serif;line-hei
 header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
 header a{color:var(--acc);text-decoration:none;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px}
 h1{font:500 20px "Frank Ruhl Libre",serif;flex:1}
-section{border-bottom:1px solid var(--line);padding:16px}
+#quick{padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:61px;background:var(--bg);z-index:4}
+#presets{display:flex;gap:8px;overflow-x:auto;margin-top:8px;padding-bottom:2px;scrollbar-width:none}
+#presets button{white-space:nowrap;min-height:40px;padding:8px 14px;border-radius:20px;color:var(--dim)}#presets button.on{color:var(--acc);border-color:var(--acc)}
+details.sec{border-bottom:1px solid var(--line)}details.sec>summary{list-style:none;cursor:pointer;padding:16px;font:500 13px "IBM Plex Mono",Heebo,monospace;color:var(--acc);letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+details.sec>summary::-webkit-details-marker{display:none}details.sec>summary:after{content:"﹀";margin-inline-start:auto;color:var(--dim)}details.sec[open]>summary:after{content:"︿"}
+details.sec>.body{padding:0 16px 16px}.row.hide{display:none}
+h2{display:none}
 h2{font:500 12px "IBM Plex Mono",Heebo,monospace;color:var(--acc);letter-spacing:.06em;margin-bottom:10px}
 .row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #20252a}
 .row:last-child{border:0}
@@ -34,25 +40,28 @@ button.main{border-color:var(--acc);color:var(--acc);flex:1}
 .ok{color:var(--green)}.err{color:var(--red)}
 </style></head><body>
 <header><a href="/">→ חזרה</a><h1>הגדרות מנוע</h1></header>
-<section><h2>קוד גישה</h2>
+<div id="quick"><input type="text" id="sq" placeholder="חיפוש הגדרה או מקור..." autocomplete="off">
+<div id="presets"><button data-p="bal">מאוזן</button><button data-p="field">שטח קודם</button><button data-p="ver">מאומת בלבד</button><button data-p="eco">חיסכון</button><button data-p="night">לילה</button></div>
+<p class="note" id="pdesc">תבנית ממלאת את הטופס. כלום לא נשמר עד שלוחצים "שמור".</p></div>
+<details class="sec" open><summary>קוד גישה</summary><div class="body">
 <input type="password" id="pin" placeholder="קוד גישה (4 תווים ומעלה)" autocomplete="current-password">
-<p class="note" id="pinnote"></p></section>
-<section><h2>עוזר מודל (LLM)</h2><div id="llm"></div></section>
-<section><h2>סף ומתפרצים</h2><div id="thr"></div></section>
-<section><h2>התראות דחיפה (ntfy)</h2><div id="push"></div></section>
-<section><h2>קצב ומשאבים</h2><div id="rate"></div></section>
-<section><h2>מקורות שטח (לא רשמיים)</h2><p class="note">ערוצי טלגרם ציבוריים ופוסטים ממסטודון. דיווח שטח בודד תמיד מסומן "אינדיקציה ראשונית" ולא עולה בדירוג בלי אישור ממקור נוסף.</p><div id="field"></div>
+<p class="note" id="pinnote"></p></div></details>
+<details class="sec" open><summary>עוזר מודל (LLM)</summary><div class="body"><div id="llm"></div></div></details>
+<details class="sec"><summary>סף ומתפרצים</summary><div class="body"><div id="thr"></div></div></details>
+<details class="sec"><summary>התראות דחיפה (ntfy)</summary><div class="body"><div id="push"></div></div></details>
+<details class="sec"><summary>קצב ומשאבים</summary><div class="body"><div id="rate"></div></div></details>
+<details class="sec"><summary>מקורות שטח (לא רשמיים)</summary><div class="body"><p class="note">ערוצי טלגרם ציבוריים ופוסטים ממסטודון. דיווח שטח בודד תמיד מסומן "אינדיקציה ראשונית" ולא עולה בדירוג בלי אישור ממקור נוסף.</p><div id="field"></div>
 <div class="row"><div class="l"><b>הוסף ערוץ טלגרם</b><small>שם משתמש ציבורי, למשל abualiexpress</small></div></div><div class="addrow"><input type="text" id="addTg" placeholder="@channel" dir="ltr"><button id="addTgB">הוסף</button></div>
-<p class="note">תגיות מסטודון (מופרדות בפסיק)</p><textarea id="mTags" rows="2" dir="ltr"></textarea></section>
-<section><h2>מילות מפתח</h2><p class="note">מעקב: פריט שמכיל מילה כזו נחשב קריטי ומופיע ב"מתפרץ". השתקה: פריט עם מילה כזו מוסתר לגמרי. מופרדות בפסיק.</p>
-<p class="note">מעקב</p><textarea id="watch" rows="2"></textarea><p class="note">השתקה</p><textarea id="mute" rows="2"></textarea></section>
-<section><h2>הוסף מקור RSS</h2><p class="note">כתובת https בלבד. ברירת מחדל: מסווג כ"שטח" (לא מאומת, לא נחשב אישור).</p>
-<div class="addcol"><input type="text" id="cUrl" placeholder="https://.../feed" dir="ltr"><input type="text" id="cName" placeholder="שם המקור"><div class="addrow"><select id="cLang"><option value="en">EN</option><option value="he">עברית</option><option value="ar">ערבית</option><option value="fa">פרסית</option><option value="ru">רוסית</option></select><select id="cRel"><option value="field">שטח</option><option value="media">חדשות</option><option value="osint">OSINT</option></select><button id="addRssB">הוסף</button></div></div></section>
-<section><h2>מקורות RSS <span class="tag" id="rsssum"></span></h2><p class="note">כבוי = המקור לא נשלף כלל. סטטוס מגיע מהבדיקה האחרונה של השרת, לא מהנחה.</p><div class="srcs" id="rss"></div></section>
-<section><h2>ערוצי טלגרם</h2><p class="note">כל הערוצים ציבוריים ולא מאומתים. פריט משם נשאר "אינדיקציה ראשונית" עד שמקור חדשותי מאשר.</p><div class="srcs" id="tg"></div></section>
-<section><h2>שעות שקט</h2><div id="quiet"></div></section>
-<section><h2>תצוגה</h2><div id="ui"></div></section>
-<section><h2>איפוס</h2><button id="reset">החזר ברירות מחדל</button></section>
+<p class="note">תגיות מסטודון (מופרדות בפסיק)</p><textarea id="mTags" rows="2" dir="ltr"></textarea></div></details>
+<details class="sec"><summary>מילות מפתח</summary><div class="body"><p class="note">מעקב: פריט שמכיל מילה כזו נחשב קריטי ומופיע ב"מתפרץ". השתקה: פריט עם מילה כזו מוסתר לגמרי. מופרדות בפסיק.</p>
+<p class="note">מעקב</p><textarea id="watch" rows="2"></textarea><p class="note">השתקה</p><textarea id="mute" rows="2"></textarea></div></details>
+<details class="sec"><summary>הוסף מקור RSS</summary><div class="body"><p class="note">כתובת https בלבד. ברירת מחדל: מסווג כ"שטח" (לא מאומת, לא נחשב אישור).</p>
+<div class="addcol"><input type="text" id="cUrl" placeholder="https://.../feed" dir="ltr"><input type="text" id="cName" placeholder="שם המקור"><div class="addrow"><select id="cLang"><option value="en">EN</option><option value="he">עברית</option><option value="ar">ערבית</option><option value="fa">פרסית</option><option value="ru">רוסית</option></select><select id="cRel"><option value="field">שטח</option><option value="media">חדשות</option><option value="osint">OSINT</option></select><button id="addRssB">הוסף</button></div></div></div></details>
+<details class="sec"><summary>מקורות RSS <span class="tag" id="rsssum"></span></summary><div class="body"><p class="note">כבוי = המקור לא נשלף כלל. סטטוס מגיע מהבדיקה האחרונה של השרת, לא מהנחה.</p><div class="srcs" id="rss"></div></div></details>
+<details class="sec"><summary>ערוצי טלגרם</summary><div class="body"><p class="note">כל הערוצים ציבוריים ולא מאומתים. פריט משם נשאר "אינדיקציה ראשונית" עד שמקור חדשותי מאשר.</p><div class="srcs" id="tg"></div></div></details>
+<details class="sec"><summary>שעות שקט</summary><div class="body"><div id="quiet"></div></div></details>
+<details class="sec"><summary>תצוגה</summary><div class="body"><div id="ui"></div></div></details>
+<details class="sec"><summary>איפוס</summary><div class="body"><button id="reset">החזר ברירות מחדל</button></div></details>
 <div id="foot"><span id="msg"></span><button class="main" id="save">שמור</button></div>
 <script>
 let S, D, LIM, SRC = {};
@@ -121,6 +130,20 @@ async function post(body) {
 }
 $("save").onclick = async () => { if (!($("pin").value || sessionStorage.getItem("pin"))) { $("msg").className = "err"; $("msg").textContent = "הקלד קוד גישה"; return; } if (await post({ settings: collect() })) load(); };
 $("reset").onclick = async () => { if (confirm("להחזיר את כל ההגדרות לברירת מחדל?") && await post({ reset: true })) load(); };
+const PRESETS = {
+  bal: { d: "ברירות המחדל: איזון בין מהירות לאמינות.", s: { llmOn: 1, llmBudget: 3000, bMin: 3, bWin: 20, bAge: 90, rotRss: 8, rotTg: 6, rotMasto: 3, mastoOn: 1, fieldFirst: 1, hideTg: 0, poll: 45, pushOn: 1, pushCrit: 0, qOn: 0 } },
+  field: { d: "מדגיש דיווחי שטח עצמאיים: יותר טלגרם ומסטודון, סף מתפרץ נמוך (2 מקורות). עדיין מסומן 'לא מאומת'.", s: { bMin: 2, bWin: 25, rotTg: 8, rotMasto: 5, mastoOn: 1, fieldFirst: 1, hideTg: 0 } },
+  ver: { d: "רק מה שמקור חדשותי דיווח עליו. בלי מסטודון, בלי דיווחי שטח בודדים. איטי יותר, שקט יותר.", s: { hideTg: 1, fieldFirst: 0, mastoOn: 0, bMin: 3 } },
+  eco: { d: "חוסך מכסה וסוללה: פחות מקורות לריצה, מודל מצומצם, רענון כל 2 דקות.", s: { llmBudget: 1000, rotRss: 4, rotTg: 3, rotMasto: 1, poll: 120 } },
+  night: { d: "שעות שקט 23:00-07:00, ובלילה רק התראות קריטיות.", s: { qOn: 1, qFrom: 23, qTo: 7, pushCrit: 1 } },
+};
+document.addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (!b) return; const p = PRESETS[b.dataset.p]; if (!p) return;
+  for (const [id, v] of Object.entries(p.s)) { const el = $(id); if (!el) continue; if (el.type === "checkbox") el.checked = !!v; else el.value = v; }
+  document.querySelectorAll("#presets button").forEach(x => x.classList.toggle("on", x === b)); $("pdesc").textContent = p.d + " (טרם נשמר)"; mark(); });
+function mark() { $("msg").className = ""; $("msg").textContent = "יש שינויים שלא נשמרו"; }
+document.addEventListener("input", e => { if (e.target.id !== "sq" && e.target.id !== "pin") mark(); });
+$("sq").addEventListener("input", () => { const q = $("sq").value.trim().toLowerCase();
+  document.querySelectorAll("details.sec").forEach(d => { let any = false; d.querySelectorAll(".row").forEach(r => { const hit = !q || r.textContent.toLowerCase().includes(q); r.classList.toggle("hide", !hit); if (hit) any = true; }); d.style.display = (!q || any || d.textContent.toLowerCase().includes(q)) ? "" : "none"; if (q && any) d.open = true; }); });
 document.addEventListener("click", async e => {
   const t = e.target;
   if (t.id === "addTgB") { const hnd = $("addTg").value.trim().replace(/^@|https?:\/\/t\.me\/(s\/)?/g, ""); if (!/^[A-Za-z0-9_]{4,40}$/.test(hnd)) { $("msg").className = "err"; $("msg").textContent = "שם ערוץ לא תקין"; return; } const s = collect(); s.customTg = Array.from(new Set((S.customTg || []).concat(hnd))); if (await post({ settings: s })) { $("addTg").value = ""; load(); } }
