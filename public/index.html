@@ -2,7 +2,8 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0B">
 <title>הגמל · מוניטור גיאופוליטי — מזרח תיכון</title>
 <meta name="description" content="מוניטור אירועים גיאופוליטיים במזרח התיכון — נתוני GDELT חיים, מפה, איתותי הסלמה ודוחות.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -117,25 +118,129 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 #sndbtn{background:rgba(11,11,11,.88);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:4px 10px;font-size:14px;cursor:pointer;font-family:Heebo}
 #fastbeat{font-size:12px}
 @media(max-width:900px){main{grid-template-columns:1fr}aside{order:2;max-height:none}#mapwrap{height:60vh}#map{position:absolute}}
+
+/* ---- UX pass: perf + mobile ---- */
+.lf,.ev,.brk,.alert{content-visibility:auto;contain-intrinsic-size:auto 64px}
+aside,#livefeed,#breaking,#feed,#kinetic,#alerts{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.brk a,.lf a{display:block}
+.new{animation:newin 2.4s ease-out}
+@keyframes newin{0%{background:rgba(62,155,255,.35)}100%{background:transparent}}
+#seg{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+#seg button{flex:1;background:#181818;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 6px;font:700 13px Heebo;cursor:pointer;min-height:40px}
+#seg button.on{border-color:var(--blue);background:#101a26}
+#seg #segrep{flex:none;background:var(--red);border-color:var(--red);color:#fff}
+#hotchip{background:var(--red);color:#fff;border:0;border-radius:20px;padding:5px 12px;font:800 13px Heebo;cursor:pointer;animation:hotp 1.8s infinite}
+@keyframes hotp{0%,100%{box-shadow:0 0 0 0 rgba(224,31,46,.6)}50%{box-shadow:0 0 0 6px rgba(224,31,46,0)}}
+#bnav{display:none}
+#xclose{position:sticky;top:0;float:inline-start;z-index:20;background:#222;color:#fff;border:1px solid var(--line);border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer}
+#neterr{display:none;position:fixed;top:0;inset-inline:0;z-index:3000;background:#5a1a1a;color:#fff;text-align:center;padding:6px;font-size:13px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+@media(max-width:900px){
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  header{padding:8px 12px;gap:8px;position:sticky;top:0;background:var(--bg);z-index:900}
+  .brand{font-size:17px}.sub{display:none}
+  .live{font-size:12px;gap:5px;flex-wrap:wrap}
+  .stats{scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .stat{min-width:84px;padding:7px 10px;scroll-snap-align:start;flex:none}
+  .stat .num{font-size:19px}.stat .lbl{font-size:10px;line-height:1.25}
+  main{display:block;min-height:0}
+  aside{max-height:none;border:none;display:block}
+  #breaking,#livefeed,#alerts,#kinetic,#articles,#feed{max-height:none!important;overflow:visible!important}
+  .lf,.brk,.ev,.alert{padding:12px 14px}
+  .lf,.brk{font-size:15px;line-height:1.5}
+  body[data-view=feed] .v-more,body[data-view=feed] #mapwrap,body[data-view=feed] #trend,body[data-view=feed] footer{display:none}
+  body[data-view=map] aside,body[data-view=map] #trend,body[data-view=map] footer,body[data-view=map] .stats{display:none}
+  body[data-view=more] .v-feed,body[data-view=more] #mapwrap{display:none}
+  body[data-view=map] #mapwrap{height:calc(100dvh - 118px - env(safe-area-inset-bottom))}
+  body[data-view=map]{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+  #mapwrap{height:calc(100dvh - 118px)}
+  #filters{inset-inline:8px;max-width:none;top:8px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+  .fbtn{white-space:nowrap;flex:none;min-height:38px;padding:6px 14px;font-size:13px}
+  #reportbtn{display:none}
+  #gibsbtn{top:auto!important;bottom:14px;inset-inline-start:14px;inset-inline-end:auto!important;min-height:38px}
+  #legend{display:none}#legend.open{display:block;bottom:60px;inset-inline-start:14px}
+  #precnote{display:none!important}
+  .leaflet-control-zoom{display:none}
+  #bnav{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:1500;background:rgba(14,14,14,.97);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  #bnav button{flex:1;background:none;border:0;color:var(--dim);font:700 12px Heebo;padding:8px 0 7px;min-height:56px;cursor:pointer;position:relative}
+  #bnav button i{display:block;font-style:normal;font-size:20px;line-height:1.1}
+  #bnav button.on{color:#fff;box-shadow:inset 0 2px 0 var(--red)}
+  #bnav b{position:absolute;top:4px;inset-inline-start:calc(50% + 8px);background:var(--red);color:#fff;border-radius:10px;font-size:11px;padding:0 5px;min-width:18px}
+  #bnav b:empty{display:none}
+  #seg #segrep{display:none}
+  #modal .card{padding-top:10px}
+  #modal .tools{position:sticky;bottom:0;background:var(--panel);padding:10px 0;border-top:1px solid var(--line)}
+}
+@media(min-width:901px){#xclose{display:none}#seg #segrep{display:none}}
+
+#tb{position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line)}
+#thr,#tiers{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 10px}
+#thr button,#tiers button{flex:none;background:#181818;border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:7px 14px;font:700 13px Heebo;cursor:pointer;min-height:38px;white-space:nowrap}
+#thr button.on,#tiers button.on{border-color:var(--red);background:#2a1214}
+#tiers{padding-top:0}
+#tiers #fullrep{background:var(--red);border-color:var(--red);color:#fff;margin-inline-start:auto}
+#q{flex:1;min-width:90px;background:#141414;border:1px solid var(--line);color:#fff;border-radius:20px;padding:0 14px;font:14px Heebo;min-height:38px}
+.card2{padding:12px 14px;border-bottom:1px solid var(--line);border-inline-start:4px solid var(--gray);content-visibility:auto;contain-intrinsic-size:auto 110px}
+.card2.verified{border-inline-start-color:var(--green)}.card2.probable{border-inline-start-color:var(--yellow)}.card2.initial{border-inline-start-color:var(--orange)}
+.card2.burst{border-inline-start-color:var(--red);background:#1c1011}
+.card2 .ttl{font-size:15.5px;line-height:1.5;overflow-wrap:anywhere}
+.card2 .row2{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;font-size:12px;color:var(--dim)}
+.card2 .bd{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:800;color:#000}
+.bd.verified{background:var(--green)}.bd.probable{background:var(--yellow)}.bd.initial{background:var(--orange)}.bd.burst{background:var(--red);color:#fff}.bd.claim{background:#444;color:#fff}.bd.mdl{background:#2a3a55;color:#cfe}
+.card2 .acts{display:flex;gap:8px;margin-top:8px}
+.card2 .acts button,.card2 .acts a{background:#1b1b1b;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:0 12px;min-height:38px;display:inline-flex;align-items:center;font:700 13px Heebo;cursor:pointer;text-decoration:none}
+.card2 .acts .pin.on{border-color:var(--yellow);color:var(--yellow)}
+.card2 details{margin-top:6px;font-size:12px}.card2 details a{color:var(--blue);display:inline-block;margin:4px 8px 0 0}
+.sk{height:84px;margin:10px 14px;border-radius:8px;background:linear-gradient(90deg,#161616,#222,#161616);background-size:200% 100%;animation:shim 1.2s infinite}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+#streamnote{padding:12px 14px;font-size:12px;color:var(--dim);line-height:1.6}
+details.raw{border-bottom:1px solid var(--line)}details.raw summary{padding:12px 16px;font-weight:800;font-size:14px;cursor:pointer;color:var(--dim)}
+.hdrsec{padding:8px 14px;font-weight:800;font-size:13px;color:var(--red);background:#150d0d;position:sticky;top:96px;z-index:4}
+@media(min-width:901px){#thr,#tiers{flex-wrap:wrap}header{flex-wrap:nowrap;padding:8px 20px}.sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}.live{white-space:nowrap}.stat{padding:8px 14px}.stat .num{font-size:20px}.stat .lbl{font-size:11px}main{grid-template-columns:420px 1fr;min-height:calc(100vh - 120px)}aside{overflow-y:auto;max-height:calc(100vh - 120px)}#tb{top:0}}
+
+@media(max-width:900px){
+  header{flex-wrap:wrap;padding:6px 12px 4px;gap:2px 8px}
+  .live{width:100%;margin:0;order:3;font-size:11px;gap:6px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
+  #sndbtn{margin-inline-start:auto;order:2}
+  .brand{order:1;font-size:16px}
+  #hotchip{order:2;padding:3px 10px;font-size:12px}
+  body[data-view=feed] .stats{display:none}
+  #q{flex:none;width:112px}
+  #tb{top:44px}
+  .hdrsec{top:128px}
+  body.modal-open #bnav{display:none}
+  body[data-view=map] #mapwrap{height:calc(100dvh - 86px - env(safe-area-inset-bottom))}
+}
 </style>
 </head>
-<body>
+<body data-view="feed">
+<div id="neterr"></div>
 <header>
   <div class="brand">הגמל <em>·</em> מוניטור גיאופוליטי</div>
   <div class="sub">בוט התראות 24/7 · מבזקים, טלגרם ועדכונים חיים כל דקה · כתבות להקשר בלבד · מפה ממוקמת</div>
-  <div class="live"><span class="dot"></span> LIVE <span class="mono" id="updated">—</span> <span id="fastbeat" class="mono"></span> <button id="sndbtn" title="צליל התראה — מופעל אחרי לחיצה ראשונה בעמוד">🔊</button></div>
+  <button id="hotchip" style="display:none"></button>
+  <div class="live"><span class="dot"></span> LIVE <span class="mono" id="updated">—</span> <span id="fastbeat" class="mono"></span></div>
+  <button id="sndbtn" title="צליל התראה — מופעל אחרי לחיצה ראשונה בעמוד">🔊</button>
 </header>
 
 <div class="stats" id="stats"></div>
 
 <main>
   <aside>
+  <div class="v-feed">
+    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">🔥 מתפרץ</button><button data-t="ver">מאומת</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
+    <div id="stream"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+    <div id="streamnote"></div>
+  </div>
+  <div class="v-more">
+    <details class="raw"><summary>מבזקים וטלגרם גולמיים (ללא איחוד ודירוג)</summary><div class="v-feed-raw">
     <div class="panel-h" style="color:var(--red)">🚨 התראות מבזק · נשלחות גם לנייד <span class="tag" id="brkcount"></span></div>
     <div id="breaking"></div>
     <div class="panel-h">⚡ מבזקים, ציוצים ועדכונים חיים <span class="tag" id="lfcount"></span></div>
     <div id="livefeed"></div>
     <div class="panel-h" style="color:var(--dim)">📰 כתבות · הקשר ואימות בלבד (משני) <span class="tag" id="artcount"></span></div>
     <div id="articles" style="max-height:170px;overflow-y:auto;border-bottom:1px solid var(--line);opacity:.85"></div>
+    </div></details>
     <div class="panel-h">⚠ איתותי הסלמה <span class="tag" id="alertcount"></span></div>
     <div id="alerts"></div>
     <div class="panel-h">🎯 תקיפות ויירוטים <span class="tag" id="kcount"></span></div>
@@ -151,6 +256,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
       <div id="tglist"></div>
       <div style="color:var(--dim);font-size:11px;margin-top:4px">טלגרם · ערוץ ציבורי · לא מאומת — נסרק ללא מפתח. עם מיקום מזוהה → למפה; בלי מיקום אבל אזורי/קריטי → לזרם המבזקים עם אזהרת "לא מאומת".</div>
     </div>
+  </div>
   </aside>
   <div id="mapwrap">
     <div id="filters"></div>
@@ -165,6 +271,7 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <div id="trend"><h3>עוצמת אירועים · 12 החלונות האחרונים (15 דקות כל חלון)</h3><div id="bars"></div></div>
 
 <div id="modal"><div class="card">
+  <button id="xclose" aria-label="סגור">✕</button>
   <h2>דוח מצב · מזרח תיכון</h2>
   <div class="gen mono" id="rgen"></div>
   <div class="tabs" id="rtabs"></div>
@@ -178,6 +285,8 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
   <table id="rnot"></table>
   <div class="disc" id="rdisc"></div></details>
 </div></div>
+
+<nav id="bnav"><button data-v="feed" class="on"><i>🚨</i>התראות<b id="nbrk"></b></button><button data-v="map"><i>🗺</i>מפה</button><button data-v="rep"><i>📄</i>דוח</button><button data-v="more"><i>☰</i>עוד</button></nav>
 
 <footer>
   מקורות: <b>GDELT 2.0 Events</b> (כל 15 דק') · <b>USGS</b> (רעידות אדמה) · <b>NASA FIRMS</b> (חדל"פ תרמיים, ~3 שעות) · <b>adsb.lol</b> (תעופה צבאית — רק מטוסים שמשדרים בגלוי; כיסוי חלקי מטבעו) · מבזקים ועדכונים חיים ynet / וואלה / מעריב / mako / JPost / BBC / אל ג'זירה · ערוצי טלגרם ציבוריים (כולל מראי ציוצים) (נסרקים ללא מפתח, תווית "לא מאומת", ממוקמים רק כשזוהתה עיר). היררכיית פריטים: דיווחים עם מיקום מזוהה ברמת עיר/אתר מופיעים על המפה; דיווחים ממקור חדשותי ללא מיקום נשמרים בזרם המבזקים עם תווית אזור; דיווחים משמעותיים ללא מיקום מופיעים גם אם לא אומתו — עם אזהרת "לא מאומת" בולטת. אין ניפוי לפי מיקום בלבד.<br>
@@ -227,7 +336,7 @@ function renderBreaking(){
   if (!list.length){ el.innerHTML = '<div class="alert empty">אין התראות פעילות — הסריקה רצה כל דקה</div>'; }
   else el.innerHTML = list.map(a=>{
     const crit = a.sev==='critical';
-    return `<div class="brk ${crit?'crit':'high'}">
+    return `<div class="brk ${crit?'crit':'high'}" data-id="${a.id}"${a.lat!=null?` data-lat="${a.lat}" data-lon="${a.lon}"`:''}>
       <div>${crit?'🚨':'⚠️'} ${a.url?`<a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>`:a.title}</div>
       <div class="badges"><span class="t mono">${fmtT(a.t)}</span>${a.srcKind==='live'?'<span class="b" style="color:#4dd0e1;border-color:#2a4a52">📡 לייב</span>':a.srcKind==='article'?'<span class="b" style="color:#aaa">📰 כתבה</span>':'<span class="b" style="color:#ffd54f;border-color:#5a4a1e">⚡ מבזק</span>'}<span class="t">${a.src||''}</span>${a.region?`<span class="b region">${a.region}</span>`:''}${a.tier==='unverified'?'<span class="b unv">⚠ לא מאומת</span>':'<span class="b ver">מקור חדשותי</span>'}${a.lat==null?'<span class="b noloc">ללא מיקום מדויק</span>':''}</div>
     </div>`;
@@ -261,7 +370,7 @@ function renderBreaking(){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) document.title = 'הגמל · מוניטור גיאופוליטי — מזרח תיכון'; });
 
-map = L.map('map',{zoomControl:true,attributionControl:false}).setView([29.5,42],5);
+map = L.map('map',{zoomControl:true,attributionControl:false,preferCanvas:true}).setView([29.5,42],5);
 let gibsLayer = null;
 function gibsDate(){ const d = new Date(Date.now()-86400000); return d.toISOString().slice(0,10); }
 document.addEventListener('click', e=>{
@@ -338,7 +447,7 @@ function renderLivefeed(){
     if (f.region) badges.push(`<span class="b region">${f.region}</span>`);
     badges.push(f.tier==='unverified' ? '<span class="b unv">⚠ לא מאומת</span>' : '<span class="b ver">מקור חדשותי</span>');
     badges.push('<span class="b noloc">ללא מיקום מדויק</span>');
-    return `<div class="lf${f.critical?' crit':''}">
+    return `<div class="lf${f.critical?' crit':''}" data-id="${f.id}">
       <div>${f.critical?'⚡ ':''}${title}</div>
       <div class="badges"><span class="t mono">${fmtT(f.d)}</span><span class="t">${f.a1}</span>${badges.join('')}</div>
     </div>`;
@@ -444,10 +553,84 @@ function renderCams(){
   }
 }
 
+
+// ---- UX pass JS ----
+const isMob = () => matchMedia('(max-width:900px)').matches;
+let VIEW = 'feed', SEEN = null, LAST_SIG = '', FAILS = 0, SEG = 'all';
+function setView(v, push){
+  if (v === 'rep'){ openReport(true); return; }
+  VIEW = v; document.body.dataset.view = v;
+  document.querySelectorAll('#bnav button').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
+  window.scrollTo(0,0);
+  if (v==='map') setTimeout(()=>{ map.invalidateSize(); if (DATA && !MAP_DONE) { renderMap(); renderLegend(); } },60);
+  if (push) history.pushState({v}, '');
+}
+function openReport(push){
+  document.getElementById('modal').style.display='block'; document.body.style.overflow='hidden'; document.body.classList.add('modal-open');
+  loadSitrep(); loadGdelt(); if (push) history.pushState({rep:1}, '');
+}
+function closeReport(fromPop){
+  const m = document.getElementById('modal'); if (m.style.display!=='block') return;
+  m.style.display='none'; document.body.style.overflow=''; document.body.classList.remove('modal-open');
+  if (!fromPop && history.state && history.state.rep) history.back();
+}
+window.addEventListener('popstate', e=>{ closeReport(true); if (e.state && e.state.v) setView(e.state.v,false); else if (!e.state) setView('feed',false); });
+document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeReport(); });
+document.querySelectorAll('#bnav button').forEach(b=>b.onclick=()=>setView(b.dataset.v,true));
+document.getElementById('xclose').onclick = ()=>closeReport();
+document.getElementById('hotchip').onclick = ()=>openReport(true);
+document.getElementById('legend').addEventListener('click', e=>{ if (e.target.closest('.row')) return; });
+function focusOn(lat, lon){
+  setView('map', true);
+  setTimeout(()=>{ map.invalidateSize(); map.flyTo([lat,lon], Math.max(map.getZoom(), 8), {duration:.8}); }, 120);
+}
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-lat]');
+  if (el && !e.target.closest('a')) focusOn(+el.dataset.lat, +el.dataset.lon);
+});
+let MAP_DONE = false;
+
 async function load(){
-  const r = await fetch('/api/data'); DATA = await r.json();
-  document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated)+' · רענון אוטומטי כל דקה';
-  renderStats(); renderBreaking(); renderAlerts(); renderLivefeed(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
+  if (document.hidden) return;
+  let d;
+  try{
+    const r = await fetch('/api/data'); if (!r.ok) throw new Error(r.status); d = await r.json(); FAILS = 0;
+    document.getElementById('neterr').style.display='none';
+  }catch(e){
+    FAILS++; const n = document.getElementById('neterr');
+    n.textContent = 'אין חיבור לשרת, מציג נתונים אחרונים. מנסה שוב...'; n.style.display = DATA ? 'block' : 'none';
+    return;
+  }
+  const sig = d.updated+'|'+(d.fast&&d.fast.last)+'|'+((d.breaking||[])[0]||{}).id+'|'+((d.feed||[])[0]||{}).id+'|'+(d.feed||[]).length+'|'+d.events.length+'|'+HIDE_UNV;
+  DATA = d;
+  document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
+  hotChip();
+  if (sig === LAST_SIG){ updateBeat(); return; }   // nothing changed: skip every re-render
+  LAST_SIG = sig;
+  const ids = new Set((DATA.feed||[]).map(f=>f.id).concat((DATA.breaking||[]).map(b=>b.id)));
+  const fresh = SEEN ? new Set([...ids].filter(i=>!SEEN.has(i))) : new Set(); SEEN = ids; window.__fresh = fresh;
+  renderStats(); renderBreaking(); renderLivefeed(); renderAlerts(); renderKinetic(); renderFeed(); renderTrend(); renderTg(); renderCams();
+  renderFilters();
+  if (!isMob() || VIEW==='map'){ renderMap(); renderLegend(); MAP_DONE = true; } else MAP_DONE = false;   // do not build 1200 markers while the map is hidden
+  markNew();
+}
+function updateBeat(){
+  const fb = document.getElementById('fastbeat');
+  if (DATA.fast && DATA.fast.last){
+    const age = Math.max(0, Math.round((Date.now()-stampMs(DATA.fast.last))/1000));
+    fb.textContent = '· סריקה לפני ' + (age<90 ? age+'שנ׳' : Math.round(age/60)+'דק׳');
+    fb.style.color = age<150 ? 'var(--green)' : age<420 ? 'var(--yellow)' : 'var(--red)';
+  }
+}
+function hotChip(){
+  const cut = toStamp(Date.now()-3*3600*1000);
+  const n = (DATA.breaking||[]).filter(a=>a.t>=cut).length;
+  const c = document.getElementById('hotchip'); c.style.display = n ? 'inline-block' : 'none'; c.textContent = '🔥 '+n+' מתפרצים · דוח';
+  document.getElementById('nbrk').textContent = n || '';
+}
+function markNew(){
+  const f = window.__fresh; if (!f || !f.size) return;
+  document.querySelectorAll('[data-id]').forEach(el=>{ if (f.has(el.dataset.id)) el.classList.add('new'); });
 }
 
 async function loadGdelt(){
@@ -481,24 +664,83 @@ async function loadSitrep(){
     if(!d.breaking.length && !d.verified.length && !d.probable.length && !d.initial.length) box.innerHTML = '<div class="line">אין כרגע דיווחים רלוונטיים בזירה הזו ב-72 השעות האחרונות במקורות שלנו.</div>'+box.innerHTML;
   }catch(e){ box.innerHTML = '<div class="line">שגיאה בטעינת הדוח. נסה לרענן.</div>'; }
 }
-document.getElementById('reportbtn').onclick = ()=>{ document.getElementById('modal').style.display='block'; loadSitrep(); loadGdelt(); };
+document.getElementById('reportbtn').onclick = ()=>openReport(true);
 document.getElementById('rrefresh').onclick = ()=>{ loadSitrep(); loadGdelt(); };
 document.getElementById('rcopy').onclick = async ()=>{
   const b = document.getElementById('rcopy');
   try{ const t = await (await fetch('/api/sitrep?format=text&theater='+SR_TH)).text(); await navigator.clipboard.writeText(t); b.textContent='הועתק'; }catch(e){ b.textContent='ההעתקה נכשלה'; }
   setTimeout(()=>b.textContent='העתק כטקסט',2000);
 };
-document.getElementById('close').onclick = ()=> document.getElementById('modal').style.display='none';
+document.getElementById('close').onclick = ()=> closeReport();
 document.getElementById('sndbtn').textContent = SND_ON ? '🔊' : '🔇';
 document.getElementById('sndbtn').onclick = ()=>{
   SND_ON = !SND_ON; localStorage.setItem('brk_snd', SND_ON?'on':'off');
   document.getElementById('sndbtn').textContent = SND_ON ? '🔊' : '🔇';
   if (SND_ON) beep(false);
 };
-document.getElementById('modal').onclick = e=>{ if(e.target.id==='modal') e.target.style.display='none'; };
+document.getElementById('modal').onclick = e=>{ if(e.target.id==='modal') closeReport(); };
 
+
+// ---- Stream (merged, deduped, tiered): the main screen ----
+let TH = 'all', TIER = 'all', Q = '', STREAM = null, PINS = {};
+try{ PINS = JSON.parse(localStorage.getItem('pins')||'{}'); }catch(e){}
+function savePins(){ localStorage.setItem('pins', JSON.stringify(PINS)); document.getElementById('pincount').textContent = Object.keys(PINS).length; }
+function ago(m){ return m==null?'':(m<1?'עכשיו':m<60?m+' דק׳':m<1440?Math.floor(m/60)+' שע׳ '+(m%60?m%60+' דק׳':''):Math.floor(m/1440)+' ימים'); }
+function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function cardHtml(c){
+  const cls = c.burst?'burst':c.tier;
+  const pinned = !!PINS[c.id];
+  const lk = (c.links||[]);
+  return `<div class="card2 ${cls}" data-sid="${c.id}"><div class="ttl" dir="auto">${escH(c.title)}</div>
+  <div class="row2"><span class="bd ${c.tier}">${escH(c.tierHe)}</span>${c.burst?'<span class="bd burst">🔥 מתפרץ</span>':''}${c.claim?'<span class="bd claim">טענה, לא עובדה</span>':''}${c.llmMerged?'<span class="bd mdl" title="אוחד בעזרת מודל, לא נספר לדירוג">איחוד מודל</span>':''}<span>לפני ${ago(c.age)}</span><span>${c.n>1?c.n+' דיווחים · ':''}<bdi>${escH((c.srcs||[]).slice(0,3).join(', '))}</bdi></span></div>
+  <div class="acts">${c.lat!=null?`<button data-act="map" data-lat="${c.lat}" data-lon="${c.lon}">🗺 במפה</button>`:''}${lk[0]?`<a href="${escH(lk[0].u)}" target="_blank" rel="noopener">🔗 מקור</a>`:''}<button class="pin ${pinned?'on':''}" data-act="pin">${pinned?'★ שמור':'☆ שמור'}</button><button data-act="share">📋</button></div>
+  ${lk.length>1?`<details><summary>${lk.length} מקורות · ${escH(c.why||'')}</summary>${lk.map(l=>`<a href="${escH(l.u)}" target="_blank" rel="noopener"><bdi>${escH(l.s)}</bdi> ↗</a>`).join('')}</details>`:`<details><summary>למה הדירוג?</summary><span style="color:var(--dim)">${escH(c.why||'')}</span></details>`}</div>`;
+}
+function renderStream(){
+  const el = document.getElementById('stream'); if (!STREAM) return;
+  let items = STREAM.stream.slice();
+  const brkIds = new Set(STREAM.breaking.map(b=>b.id));
+  let head = '';
+  if (TIER==='pin') items = Object.values(PINS).sort((a,b)=>b.pt-a.pt).map(p=>({...p.c, age:null}));
+  else {
+    if (TIER==='burst') items = items.filter(c=>c.burst||brkIds.has(c.id));
+    if (TIER==='ver') items = items.filter(c=>c.tier==='verified');
+    if (Q) { const q=Q.toLowerCase(); items = items.filter(c=>c.title.toLowerCase().includes(q)||(c.srcs||[]).join(' ').toLowerCase().includes(q)); }
+    if (TIER==='all' && !Q){
+      const top = STREAM.breaking.slice(0,5);
+      if (top.length){ head = '<div class="hdrsec">🔥 מתפרץ עכשיו · 3 שעות אחרונות</div>'+top.map(cardHtml).join('')+'<div class="hdrsec" style="color:var(--dim);background:var(--bg)">כל הדיווחים · חדש לישן</div>'; items = items.filter(c=>!top.some(t=>t.id===c.id)); }
+    }
+  }
+  el.innerHTML = head + (items.length ? items.slice(0,80).map(cardHtml).join('') : '<div style="padding:30px 16px;color:var(--dim);text-align:center">אין דיווחים להצגה בסינון הזה. נסה "הכל" או זירה אחרת.</div>');
+  const L = STREAM.llm||{};
+  document.getElementById('streamnote').innerHTML = escH(STREAM.rules)+'<br>מודל עזר: '+(L.enabled?(L.exhausted?'מכסת היום נגמרה, דירוג לפי כללים בלבד':'פעיל, לא מעלה דירוג'):'כבוי')+'. '+escH(STREAM.gaps);
+  markNew();
+}
+async function loadStream(){
+  try{
+    const r = await fetch('/api/sitrep?theater='+TH); if(!r.ok) throw 0; const d = await r.json();
+    const first = !STREAM; const prev = new Set((STREAM?STREAM.stream:[]).map(c=>c.id)); STREAM = d;
+    window.__fresh = first ? new Set() : new Set(d.stream.filter(c=>!prev.has(c.id)).map(c=>c.id));
+    document.getElementById('thr').innerHTML = d.theaters.map(t=>`<button data-th="${t.id}" class="${t.id===TH?'on':''}">${escH(t.he)}</button>`).join('');
+    renderStream();
+  }catch(e){ if(!STREAM) document.getElementById('stream').innerHTML='<div style="padding:24px;color:var(--dim)">לא הצלחתי לטעון. מנסה שוב...</div>'; }
+}
+document.getElementById('thr').addEventListener('click', e=>{ const b=e.target.closest('[data-th]'); if(!b) return; TH=b.dataset.th; STREAM=null; document.getElementById('stream').innerHTML='<div class="sk"></div><div class="sk"></div>'; loadStream(); });
+document.getElementById('tiers').addEventListener('click', e=>{ const b=e.target.closest('[data-t]'); if(!b) return; TIER=b.dataset.t; document.querySelectorAll('#tiers [data-t]').forEach(x=>x.classList.toggle('on',x===b)); renderStream(); });
+document.getElementById('fullrep').onclick = ()=>openReport(true);
+let qT; document.getElementById('q').addEventListener('input', e=>{ clearTimeout(qT); qT=setTimeout(()=>{ Q=e.target.value.trim(); renderStream(); },200); });
+document.getElementById('stream').addEventListener('click', e=>{
+  const b = e.target.closest('[data-act]'); if(!b) return; const card=b.closest('[data-sid]'); const id=card.dataset.sid;
+  const c = (STREAM.stream.concat(STREAM.breaking)).find(x=>x.id===id) || (PINS[id]&&PINS[id].c);
+  if (b.dataset.act==='map') focusOn(+b.dataset.lat, +b.dataset.lon);
+  else if (b.dataset.act==='pin'){ if (PINS[id]) delete PINS[id]; else if (c) PINS[id]={c, pt:Date.now()}; savePins(); renderStream(); }
+  else if (b.dataset.act==='share' && c){ const t = c.title+' ('+c.tierHe+(c.claim?', טענה':'')+')'+(c.links&&c.links[0]?' '+c.links[0].u:''); (navigator.share?navigator.share({text:t}):navigator.clipboard.writeText(t)).then(()=>{b.textContent='✓'; setTimeout(()=>b.textContent='📋',1500)}).catch(()=>{}); }
+});
+savePins(); loadStream(); setInterval(()=>{ if(!document.hidden) loadStream(); }, 45000);
 load();
 setInterval(load, 45000);
+setInterval(()=>{ if(!document.hidden && DATA) updateBeat(); }, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) load(); });
 </script>
 </body>
 </html>
