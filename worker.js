@@ -205,7 +205,7 @@ function selectFeeds(store, slot, nRot, nFlash, nAgg) {
   const rc = runCounter(slot), hl = (store && store.srcHealth) || {};
   const ok = f => { const h = hl[f.name]; return !(h && h.consec >= 6 && rc % 12 !== 0) && !CFG.off.includes(f.name); };   // dead sources are probed 1 run in 12
   const take = (arr, n) => { const out = []; for (let i = 0; i < Math.min(n, arr.length); i++) out.push(arr[(rc * n + i) % arr.length]); return out; };
-  const flash = RSS_FEEDS.filter(f => f.flash && ok(f)), rest = RSS_FEEDS.filter(f => !f.flash && ok(f)), agg = AGG_FEEDS.filter(ok);
+  const all = RSS_FEEDS.concat(CFG.customRss), flash = all.filter(f => f.flash && ok(f)), rest = all.filter(f => !f.flash && ok(f)), agg = AGG_FEEDS.filter(ok);
   return take(flash, nFlash).concat(take(agg, nAgg), take(rest, nRot));
 }
 function mergeHealth(store, hl) {
@@ -222,8 +222,9 @@ function noteHealth(hl, feed, ok, n, newestTs) {
 
 // ---- engine settings (KV "settings"); every value is clamped to what the free tier can carry ----
 const DEFAULT_CFG = { off: [], tgOff: [], llm: { on: true, budget: 3000 }, burst: { minSrc: 3, winMin: 20, ageMin: 90 }, breakingWinMin: 180, streamHours: 24,
-  push: { on: true, critOnly: false }, rotation: { rss: 8, tg: 6 }, clientPollSec: 45, hideTg: false };
-const CFG_LIMITS = { "llm.budget": [0, 8000], "burst.minSrc": [2, 8], "burst.winMin": [5, 60], "burst.ageMin": [15, 240], breakingWinMin: [30, 720], streamHours: [6, 72], "rotation.rss": [4, 16], "rotation.tg": [2, 8], clientPollSec: [20, 300] };
+  push: { on: true, critOnly: false, quiet: { on: false, from: 23, to: 6 } }, rotation: { rss: 8, tg: 6, masto: 3 }, clientPollSec: 45, hideTg: false,
+  fieldFirst: true, watch: [], mute: [], relOv: {}, customRss: [], customTg: [], mastoTags: ["gaza", "israel", "iran", "yemen", "lebanon", "syria", "houthi", "\u063A\u0632\u0629", "\u0627\u0644\u064A\u0645\u0646", "\u0644\u0628\u0646\u0627\u0646"], mastoOn: true };
+const CFG_LIMITS = { "llm.budget": [0, 8000], "burst.minSrc": [2, 8], "burst.winMin": [5, 60], "burst.ageMin": [15, 240], breakingWinMin: [30, 720], streamHours: [6, 72], "rotation.rss": [4, 16], "rotation.tg": [2, 8], "rotation.masto": [0, 5], "quiet.from": [0, 23], "quiet.to": [0, 23], clientPollSec: [20, 300] };
 let CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
 function clampN(v, lo, hi, d) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
 function cleanCfg(x) {
@@ -237,6 +238,14 @@ function cleanCfg(x) {
   o.breakingWinMin = clampN(x.breakingWinMin, ...L.breakingWinMin, d.breakingWinMin); o.streamHours = clampN(x.streamHours, ...L.streamHours, d.streamHours);
   o.push.on = g("push", "on") !== false; o.push.critOnly = g("push", "critOnly") === true;
   o.rotation.rss = clampN(g("rotation", "rss"), ...L["rotation.rss"], d.rotation.rss); o.rotation.tg = clampN(g("rotation", "tg"), ...L["rotation.tg"], d.rotation.tg);
+  o.rotation.masto = clampN(g("rotation", "masto"), ...L["rotation.masto"], d.rotation.masto);
+  const q = (x.push && x.push.quiet) || {}; o.push.quiet = { on: q.on === true, from: clampN(q.from, 0, 23, 23), to: clampN(q.to, 0, 23, 6) };
+  const terms = a => Array.isArray(a) ? a.filter(s => typeof s === "string").map(s => s.trim().slice(0, 40)).filter(s => s.length >= 2).slice(0, 40) : [];
+  o.watch = terms(x.watch); o.mute = terms(x.mute); o.fieldFirst = x.fieldFirst !== false; o.mastoOn = x.mastoOn !== false;
+  o.mastoTags = terms(x.mastoTags).map(s => s.replace(/^#/, "")).slice(0, 20); if (!o.mastoTags.length) o.mastoTags = d.mastoTags.slice();
+  o.customTg = terms(x.customTg).map(s => s.replace(/^@|https?:\/\/t\.me\/(s\/)?/g, "")).filter(s => /^[A-Za-z0-9_]{4,40}$/.test(s)).slice(0, 30);
+  o.relOv = {}; if (x.relOv && typeof x.relOv === "object") for (const [k, v] of Object.entries(x.relOv).slice(0, 300)) if (["media", "official", "state", "osint", "field"].includes(v)) o.relOv[String(k).slice(0, 80)] = v;
+  o.customRss = Array.isArray(x.customRss) ? x.customRss.filter(f => f && /^https:\/\//.test(String(f.url || "")) && String(f.name || "").trim()).slice(0, 30).map(f => ({ url: String(f.url).slice(0, 300), name: String(f.name).trim().slice(0, 50), lang: ["en", "he", "ar", "fa", "ru"].includes(f.lang) ? f.lang : "en", rel: ["media", "official", "state", "osint", "field"].includes(f.rel) ? f.rel : "field", me: true, flash: f.flash === true })) : [];
   o.clientPollSec = clampN(x.clientPollSec, ...L.clientPollSec, d.clientPollSec); o.hideTg = x.hideTg === true;
   return o;
 }
@@ -454,6 +463,7 @@ async function fetchRss(feed, feedOut, hl) {
         title = title.replace(new RegExp("\\s+[-\\u2013|]\\s+" + outlet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"), "").trim();
         fname = outlet; frel = STATE_RE.test(outlet) ? "state" : "media";
       }
+      if (CFG.relOv[fname]) frel = CFG.relOv[fname];
       const ts = Date.parse(pd);
       if (isFinite(ts)) newestTs = Math.max(newestTs, ts);
       if (isFinite(ts) && ts < Date.now() - 36 * 3600 * 1000) continue;   // stale entries never enter the live pipeline
@@ -699,6 +709,11 @@ async function pushBreaking(env, alerts, storeTopic) {
   const topic = storeTopic || env.NTFY_TOPIC;
   if (!topic) return { sent: 0, reason: "ntfy topic not set" };
   if (!CFG.push.on) return { sent: 0, reason: "push off in settings" };
+  if (CFG.push.quiet.on) {
+    const hr = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) % 24, q = CFG.push.quiet;
+    const inQ = q.from > q.to ? (hr >= q.from || hr < q.to) : (hr >= q.from && hr < q.to);
+    if (inQ) { alerts = alerts.filter(a => a.sev === "critical"); if (!alerts.length) return { sent: 0, reason: "quiet hours" }; }
+  }
   if (CFG.push.critOnly) { alerts = alerts.filter(a => a.sev === "critical"); if (!alerts.length) return { sent: 0, reason: "no critical alerts" }; }
   const crit = alerts.some(a => a.sev === "critical");
   const list = alerts.slice(0, 3);
@@ -736,8 +751,9 @@ async function ingestLite(env) {
     const feedOut = [];
     const slot = Math.floor(Date.now() / 60000);
     const hl = {};
-    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, CFG.rotation.rss, 14, 4).map(f => fetchRss(f, feedOut, hl)))]);
+    const [tgE0, mastoE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), fetchMasto(store, feedOut, slot), Promise.all(selectFeeds(store, slot, CFG.rotation.rss, 14, 4).map(f => fetchRss(f, feedOut, hl)))]);
     mergeHealth(store, hl);
+    const tgE = tgE0.concat(mastoE);
     const extras = tgE.concat(...rssArr);
     const seen2 = new Set(store.events.map(e => e.id));
     const freshExtras = extras.filter(e => !seen2.has(e.id));
@@ -777,14 +793,14 @@ function shortPlace(p) {
 
 const TG_LABEL_SRC = "telegram";
 const DEFAULT_TG = ["middle_east_spectator", "abualiexpress", "osintdefender", "war_monitoring", "cig_telegram", "osintupdates", "clashreport", "osint613"];
-const TG_EXTRA = ["idfofficial", "ynetalerts", "amitsegal", "IsraelWarRoom", "AlMayadeen_en", "Conflict_Monitor", "liveuamap", "tasnimnews_en", "WarTranslated", "rybar", "SaberinFa", "UkraineNow", "nexta_live", "tass_agency", "ukrpravda_news", "KyivIndependent_official"];
+const TG_EXTRA = ["idfofficial", "ynetalerts", "amitsegal", "IsraelWarRoom", "AlMayadeen_en", "Conflict_Monitor", "liveuamap", "tasnimnews_en", "WarTranslated", "rybar", "SaberinFa", "UkraineNow", "nexta_live", "tass_agency", "ukrpravda_news", "KyivIndependent_official", "englishabuali", "AbuAliExpress", "QudsNen", "gazaalannet", "Lebanon_24", "GeoPWatch", "OSINTWarfare", "ILTVNews"];
 
 let TG_DEBUG = [];
 
 function tgChannels(store) {
   if (!Array.isArray(store.tgChannels) || !store.tgChannels.length) store.tgChannels = DEFAULT_TG.slice();
   const have = new Set(store.tgChannels);
-  return store.tgChannels.concat(TG_EXTRA.filter(h => !have.has(h)));
+  return store.tgChannels.concat(TG_EXTRA.concat(CFG.customTg).filter((h, i, a) => !have.has(h) && a.indexOf(h) === i));
 }
 
 async function fetchTelegram(store, feedOut, slot) {
@@ -843,6 +859,41 @@ async function fetchTelegram(store, feedOut, slot) {
   return out;
 }
 
+// ---- Mastodon public hashtag timelines: keyless on-the-ground / citizen posts. Always field-level (unverified) ----
+const MASTO_BAD = /donat|fundrais|gofundme|chuffed|campaign|crowdfund|help us|\u062a\u0628\u0631\u0639|\u0645\u0633\u0627\u0639\u062f\u0629 \u0645\u0627\u0644\u064a\u0629|sponsor|buy now/i;
+async function fetchMasto(store, feedOut, slot) {
+  const out = [];
+  if (!CFG.mastoOn || !CFG.rotation.masto) return out;
+  const tags = CFG.mastoTags, rc = runCounter(slot), seenTx = new Set(), acctN = {};
+  for (let i = 0; i < Math.min(CFG.rotation.masto, tags.length); i++) {
+    const tag = tags[(rc * CFG.rotation.masto + i) % tags.length];
+    try {
+      const r = await tfetch("https://mastodon.social/api/v1/timelines/tag/" + encodeURIComponent(tag) + "?limit=40", { headers: { "User-Agent": "gamal-monitor/1.0 (personal OSINT dashboard)" } }, 7000);
+      if (!r.ok) { TG_DEBUG.push("masto:" + tag + ":" + r.status); continue; }
+      const arr = await r.json();
+      for (const p of arr) {
+        if (!p || p.reblog || (p.account && p.account.bot) || (p.in_reply_to_id)) continue;
+        const text = unxml(String(p.content || "").replace(/<br[^>]*>|<\/p>/gi, " ")).replace(/\s+/g, " ").trim().slice(0, 400);
+        if (text.length < 40 || /^RE:/i.test(text) || MASTO_BAD.test(text)) continue;
+        if (/rssfeed|bot@|feeds?@/i.test(p.account && p.account.acct || "")) continue;
+        const ts = Date.parse(p.created_at || ""); if (isFinite(ts) && ts < Date.now() - 12 * 3600 * 1000) continue;
+        if (/https?:\/\//.test(text) && text.replace(/https?:\/\/\S+/g, "").trim().length < 60) continue;   // link-share, not a field report
+        const dk = text.slice(0, 50).toLowerCase(); if (seenTx.has(dk)) continue; seenTx.add(dk);
+        const ak = (p.account && p.account.acct) || ""; if ((acctN[ak] = (acctN[ak] || 0) + 1) > 2) continue;   // one account flooding a tag is a sharer/spam, not a field source
+        const et = rssEtype(text), crit = CRITICAL_RE.test(text), region = regionOf(text);
+        if (!crit || !(region || gazLocate(text))) continue;   // field posts only enter when they report an incident AND name a place
+        const acct = "@" + ((p.account && p.account.acct) || "mastodon");
+        const g = gazLocate(text), id = "ms-" + hashId(p.id + tag);
+        if (!g) { feedOut.push({ id: "msf-" + hashId(p.id), d: isFinite(ts) ? toStamp(ts) : nowStamp(), a1: acct, title: text.slice(0, 200), url: String(p.url || "").slice(0, 300), src: TG_LABEL_SRC, plat: "mastodon", tier: "unverified", kind: "live", region, critical: true }); continue; }
+        const cat = classifyText(text);
+        out.push({ id, d: isFinite(ts) ? toStamp(ts) : nowStamp(), a1: acct, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0, place: text.slice(0, 120), ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
+          url: String(p.url || "").slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: TG_LABEL_SRC, plat: "mastodon", etype: et });
+      }
+    } catch (e) { TG_DEBUG.push("masto:" + tag + ":err"); }
+  }
+  return out;
+}
+
 async function ingest(env) {
   try { return await ingestInner(env); } catch (e) { return { ok: false, error: String(e && e.message || e), stack: String(e && e.stack || "").slice(0, 300) }; }
 }
@@ -884,8 +935,9 @@ async function ingestInner(env) {
   TG_DEBUG = [];
   const feedOut = [];
   const hl = {};
-  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, Math.min(6, CFG.rotation.rss), 8, 2).map(f => fetchRss(f, feedOut, hl)))]);
+  const [usgsE, firmsE, tgE1, mastoE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), fetchMasto(store, feedOut), Promise.all(selectFeeds(store, undefined, Math.min(6, CFG.rotation.rss), 8, 2).map(f => fetchRss(f, feedOut, hl)))]);
   mergeHealth(store, hl);
+  const tgE = tgE1.concat(mastoE);
   const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
   const freshExtras = extras.filter(e => !seen2.has(e.id));
@@ -1094,10 +1146,11 @@ function ageMin(s) { const m = stampMsOf(s); return m ? Math.max(0, Math.round((
 function srcPool(store, hours, cache) {
   const cut = nowStampMinus(hours * 3600 * 1000);
   const seen = new Set(), out = [];
-  function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return; seen.add(it.id); const l = cache && cache[it.id]; if (l) it.llm = l; out.push(it); }
-  for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC && f.rel !== "state", rel: f.rel, kind: f.kind, crit: !!f.critical });
+  function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return;
+    const lt = it.title.toLowerCase(); if (CFG.mute.length && CFG.mute.some(m => lt.includes(m.toLowerCase()))) return; if (CFG.watch.length && CFG.watch.some(m => lt.includes(m.toLowerCase()))) { it.crit = true; it.watch = true; } seen.add(it.id); const l = cache && cache[it.id]; if (l) it.llm = l; out.push(it); }
+  for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC && f.rel !== "state" && f.rel !== "field", rel: f.rel, kind: f.kind, crit: !!f.critical });
   for (const e of store.events || []) {
-    if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss" && e.rel !== "state", rel: e.rel, kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
+    if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss" && e.rel !== "state" && e.rel !== "field", rel: e.rel, kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
   }
   for (const b of store.breaking || []) add({ id: b.id, d: b.t, src: b.src || "", title: b.title, url: b.url || "", mainstream: b.tier !== "unverified", kind: b.srcKind, crit: true, brk: b.sev });
   return out;
@@ -1129,8 +1182,8 @@ function tierOf(c) {
   const main = new Set(c.items.filter(i => i.mainstream).map(i => i.src.toLowerCase()));
   if (main.size >= 1 && srcs.size >= 2) return { key: "verified", he: "מאומת", why: "לפחות שני מקורות נפרדים, ביניהם גוף חדשות מוכר" };
   if (main.size === 1) return { key: "probable", he: "סביר", why: "גוף חדשות מוכר אחד, ללא אישור שני" };
-  if (srcs.size >= 2) return { key: "probable", he: "סביר", why: "כמה ערוצי טלגרם (ייתכן מקור משותף)" };
-  return { key: "initial", he: "אינדיקציה ראשונית", why: "ערוץ טלגרם בודד, לא מאומת" };
+  if (srcs.size >= 2) return { key: "probable", he: "סביר", why: "כמה מקורות שטח עצמאיים (ייתכן מקור משותף)" };
+  return { key: "initial", he: "אינדיקציה ראשונית", why: "דיווח שטח בודד (טלגרם/מסטודון), לא מאומת" };
 }
 
 function best0(c) { return c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0]; }
@@ -1152,11 +1205,12 @@ function buildSitrep(store, theaterId, llmSt) {
     const crit = !llmNoise && c.items.some(i => CRITICAL_RE.test(i.title)) && !c.items.some(i => SR_NOISE.test(i.title)) && (th.id === "europe" || !NON_ME_RE.test(best0(c).title) || ME_TERMS.test(txt));
     const claim = SR_CLAIM.test(best0(c).title) || (best0(c).llm && best0(c).llm.ty === "claim");
     const best = c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0];
-    return { title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, srcs: srcs.slice(0, 6),
+    const field = c.items.every(i => !i.mainstream);
+    return { field, title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, srcs: srcs.slice(0, 6),
       links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
-  const stream = clusters.filter(c => c.t >= w24 && (c.crit || c.tier !== "initial" || c.n >= 2)).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
+  const stream = clusters.filter(c => c.t >= w24 && (c.crit || c.tier !== "initial" || c.n >= 2 || (CFG.fieldFirst && c.field && regionOf(c.title)))).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
     let lat = c.lat, lon = c.lon;
     if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
     return { ...c, id: hashId(c.title), lat, lon };
@@ -1245,7 +1299,7 @@ export default {
     if (url.pathname === "/api/settings") {
       const raw = await env.MONITOR_KV.get("settings");
       const pinH = await env.MONITOR_KV.get("settingsPin");
-      if (request.method !== "POST") return json({ settings: CFG, defaults: DEFAULT_CFG, limits: CFG_LIMITS, pinSet: !!pinH, rss: RSS_FEEDS.concat(AGG_FEEDS).map(f => ({ name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash })), tg: tgChannels(await loadStore(env)), freeTier: { aiNeuronsPerDay: 10000, workerSubrequests: 50 } });
+      if (request.method !== "POST") return json({ settings: CFG, defaults: DEFAULT_CFG, limits: CFG_LIMITS, pinSet: !!pinH, rss: RSS_FEEDS.concat(AGG_FEEDS, CFG.customRss).map(f => ({ name: f.name, lang: f.lang, rel: CFG.relOv[f.name] || f.rel, base: f.rel, flash: !!f.flash, custom: CFG.customRss.some(c => c.name === f.name) })), tg: tgChannels(await loadStore(env)), baseTg: DEFAULT_TG.concat(TG_EXTRA), freeTier: { aiNeuronsPerDay: 10000, workerSubrequests: 50 } });
       let b; try { b = await request.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
       const pin = String(b.pin || "");
       if (pin.length < 4 || pin.length > 64) return json({ ok: false, error: "pin 4-64 chars" }, 400);
