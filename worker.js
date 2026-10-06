@@ -223,7 +223,7 @@ function noteHealth(hl, feed, ok, n, newestTs) {
 // ---- engine settings (KV "settings"); every value is clamped to what the free tier can carry ----
 const DEFAULT_CFG = { off: [], tgOff: [], llm: { on: true, budget: 3000 }, burst: { minSrc: 3, winMin: 20, ageMin: 90 }, breakingWinMin: 180, streamHours: 24,
   push: { on: true, critOnly: false, quiet: { on: false, from: 23, to: 6 } }, rotation: { rss: 8, tg: 6, masto: 3 }, clientPollSec: 45, hideTg: false,
-  fieldFirst: true, watch: [], mute: [], relOv: {}, customRss: [], customTg: [], mastoTags: ["gaza", "israel", "iran", "yemen", "lebanon", "syria", "houthi", "\u063A\u0632\u0629", "\u0627\u0644\u064A\u0645\u0646", "\u0644\u0628\u0646\u0627\u0646"], mastoOn: true };
+  fieldFirst: true, showArticles: false, watch: [], mute: [], relOv: {}, customRss: [], customTg: [], mastoTags: ["gaza", "israel", "iran", "yemen", "lebanon", "syria", "houthi", "\u063A\u0632\u0629", "\u0627\u0644\u064A\u0645\u0646", "\u0644\u0628\u0646\u0627\u0646"], mastoOn: true };
 const CFG_LIMITS = { "llm.budget": [0, 8000], "burst.minSrc": [2, 8], "burst.winMin": [5, 60], "burst.ageMin": [15, 240], breakingWinMin: [30, 720], streamHours: [6, 72], "rotation.rss": [4, 16], "rotation.tg": [2, 8], "rotation.masto": [0, 5], "quiet.from": [0, 23], "quiet.to": [0, 23], clientPollSec: [20, 300] };
 let CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
 function clampN(v, lo, hi, d) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
@@ -241,7 +241,7 @@ function cleanCfg(x) {
   o.rotation.masto = clampN(g("rotation", "masto"), ...L["rotation.masto"], d.rotation.masto);
   const q = (x.push && x.push.quiet) || {}; o.push.quiet = { on: q.on === true, from: clampN(q.from, 0, 23, 23), to: clampN(q.to, 0, 23, 6) };
   const terms = a => Array.isArray(a) ? a.filter(s => typeof s === "string").map(s => s.trim().slice(0, 40)).filter(s => s.length >= 2).slice(0, 40) : [];
-  o.watch = terms(x.watch); o.mute = terms(x.mute); o.fieldFirst = x.fieldFirst !== false; o.mastoOn = x.mastoOn !== false;
+  o.watch = terms(x.watch); o.mute = terms(x.mute); o.fieldFirst = x.fieldFirst !== false; o.showArticles = x.showArticles === true; o.mastoOn = x.mastoOn !== false;
   o.mastoTags = terms(x.mastoTags).map(s => s.replace(/^#/, "")).slice(0, 20); if (!o.mastoTags.length) o.mastoTags = d.mastoTags.slice();
   o.customTg = terms(x.customTg).map(s => s.replace(/^@|https?:\/\/t\.me\/(s\/)?/g, "")).filter(s => /^[A-Za-z0-9_]{4,40}$/.test(s)).slice(0, 30);
   o.relOv = {}; if (x.relOv && typeof x.relOv === "object") for (const [k, v] of Object.entries(x.relOv).slice(0, 300)) if (["media", "official", "state", "osint", "field"].includes(v)) o.relOv[String(k).slice(0, 80)] = v;
@@ -840,7 +840,7 @@ async function fetchTelegram(store, feedOut, slot) {
           // keep unlocated reports in live feed when regional or critical, always labeled unverified
           const region = regionOf(text);
           if (region || CRITICAL_RE.test(text)) feedOut.push({ id: "tgf-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-            a1: "@" + h, title: text.slice(0, 200), url: "https://t.me/" + dp, src: TG_LABEL_SRC, tier: "unverified", kind: "live",
+            a1: "@" + h, title: text.slice(0, 200), url: "https://t.me/" + dp, src: TG_LABEL_SRC, tier: "unverified", kind: "live", rel: STATE_TG.has(h) ? "state" : "field",
             region, critical: !!CRITICAL_RE.test(text) });
           continue;
         }
@@ -849,7 +849,7 @@ async function fetchTelegram(store, feedOut, slot) {
           id: "tg-" + h + "-" + postId, d: isFinite(ts) ? toStamp(ts) : nowStamp(),
           a1: "@" + h, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0, tone: 0,
           place: text.slice(0, 120), ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
-          url: "https://t.me/" + dp, cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: TG_LABEL_SRC, etype: et,
+          url: "https://t.me/" + dp, cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: TG_LABEL_SRC, etype: et, rel: STATE_TG.has(h) ? "state" : "field",
         });
         n++;
       }
@@ -1188,7 +1188,25 @@ function tierOf(c) {
 
 function best0(c) { return c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0]; }
 
-function buildSitrep(store, theaterId, llmSt) {
+
+// ---- raw field-report classification: eyewitness observations vs analysis/articles ----
+const ANALYSIS_RE = /analysis|opinion|op-ed|editorial|explained|what we know|why |how |could |might |would |expert|according to|sources say|report says|poll|interview|thread|\u05E0\u05D9\u05EA\u05D5\u05D7|\u05D3\u05E2\u05D4|\u05DE\u05D3\u05D5\u05E2|\u05DE\u05D4 \u05D9\u05D9\u05D1\u05D5\u05D0|\u05EA\u05D7\u05E7\u05D9\u05E8|\u062A\u062D\u0644\u064A\u0644|\u0631\u0623\u064A/i;
+const OBS_TYPES = [
+  [/\bexplosion\b|\bblast\b|\bboom\b|\bheard\b|\bloud\b|\u05E4\u05D9\u05E6\u05D5\u05E5|\u05D1\u05D5\u05DD|\u05E9\u05DE\u05E2\u05E0\u05D5|\u05E7\u05D5\u05DC|\u0627\u0646\u0641\u062C\u0627\u0631|\u0633\u0645\u0639\u0646\u0627|\u062F\u0648\u064A/i, "\u05E4\u05D9\u05E6\u05D5\u05E5 / \u05E7\u05D5\u05DC"],
+  [/\bsiren\b|\balert\b|\u05D0\u05D6\u05E2\u05E7|\u05E6\u05D1\u05E2 \u05D0\u05D3\u05D5\u05DD|\u0635\u0641\u0627\u0631/i, "\u05D0\u05D6\u05E2\u05E7\u05D5\u05EA"],
+  [/\baircraft\b|\bplane\b|\bjet\b|\bfighter\b|\bhelicopter\b|\bdrone\b|\buav\b|\bairspace\b|\u05DE\u05D8\u05D5\u05E1|\u05DE\u05D8\u05D5\u05E1\u05D9\u05DD|\u05DB\u05D8\u05D1"\u05DD|\u05E8\u05D7\u05E4\u05DF|\u05DE\u05E1\u05D5\u05E7|\u0637\u0627\u0626\u0631\u0629|\u0637\u064A\u0631\u0627\u0646|\u0645\u0633\u064A\u0631/i, "\u05DE\u05D8\u05D5\u05E1\u05D9\u05DD / \u05E8\u05D7\u05E4\u05E0\u05D9\u05DD"],
+  [/\bevacuat|\bevacuation\b|\bfled\b|\bshelter\b|\u05E4\u05D9\u05E0\u05D5\u05D9|\u05DE\u05E4\u05D5\u05E0\u05D9\u05DD|\u05DE\u05E8\u05D7\u05D1 \u05DE\u05D5\u05D2\u05DF|\u0625\u062E\u0644\u0627\u0621|\u0646\u0632\u0648\u062D/i, "\u05E4\u05D9\u05E0\u05D5\u05D9"],
+  [/\btank\b|\bconvoy\b|\btroops\b|\barmored\b|\bcolumn\b|\bcheckpoint\b|\u05D8\u05E0\u05E7|\u05E9\u05D9\u05D8\u05D4|\u05E9\u05D9\u05D9\u05D8\u05D4|\u05DB\u05D5\u05D7\u05D5\u05EA|\u05DE\u05D7\u05E1\u05D5\u05DD|\u062F\u0628\u0627\u0628\u0627\u062A|\u0631\u062A\u0644|\u062D\u0627\u062C\u0632/i, "\u05EA\u05E0\u05D5\u05E2\u05EA \u05DB\u05D5\u05D7\u05D5\u05EA"],
+  [/\bship\b|\bvessel\b|\btanker\b|\bnavy\b|\bwarship\b|\bboat\b|\bport\b|\bstrait\b|\u05E1\u05E4\u05D9\u05E0\u05D4|\u05E1\u05E4\u05D9\u05E0\u05D5\u05EA|\u05E0\u05DE\u05DC|\u05D0\u05D5\u05E0\u05D9\u05D9\u05D4|\u0633\u0641\u064A\u0646\u0629|\u0628\u0627\u062E\u0631\u0629|\u0645\u064A\u0646\u0627\u0621/i, "\u05E1\u05E4\u05D9\u05E0\u05D5\u05EA"],
+  [/\bsmoke\b|\bfire\b|\bburning\b|\u05E2\u05E9\u05DF|\u05E9\u05E8\u05D9\u05E4\u05D4|\u05D3\u05DC\u05D9\u05E7\u05D4|\u062F\u062E\u0627\u0646|\u062D\u0631\u064A\u0642/i, "\u05E2\u05E9\u05DF / \u05E9\u05E8\u05D9\u05E4\u05D4"],
+  [/\bstrike\b|\battack\b|\bshelling\b|\bmissile\b|\brocket\b|\bhit\b|\u05EA\u05E7\u05D9\u05E4\u05D4|\u05D8\u05D9\u05DC|\u05E8\u05E7\u05D8\u05D4|\u05D4\u05E4\u05E6\u05E6\u05D4|\u063A\u0627\u0631\u0629|\u0642\u0635\u0641|\u0635\u0627\u0631\u0648\u062E/i, "\u05EA\u05E7\u05D9\u05E4\u05D4 / \u05D9\u05E8\u05D9"],
+];
+function obsOf(t) { for (const [re, he] of OBS_TYPES) if (re.test(t)) return he; return ""; }
+const STATEMENT_RE = /minister|spokes|president|chancellor|announce|\bsaid\b|\bsays\b|confirm|statement|meeting|summit|sanction|election|parliament|council|ceasefire|negotiat|talks|\u05E9\u05E8 |\u05D3\u05D5\u05D1\u05E8|\u05D4\u05D5\u05D3\u05D9\u05E2|\u05E0\u05D0\u05DD/i;
+const STATE_TG = new Set(["tasnimnews_en", "presstv", "tass_agency", "almayadeen_en", "ajanews"]);
+const isFieldItem = i => !i.mainstream && i.rel !== "state" && !STATE_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase());
+
+function buildSitrep(store, theaterId, llmSt, showArt) {
   llmSt = llmSt || { cache: {} };
   const th = THEATERS.find(t => t.id === theaterId) || THEATERS[0];
   const pool = srcPool(store, 72, llmSt.cache).filter(i => th.re ? th.re.test(i.title) : true);
@@ -1206,17 +1224,25 @@ function buildSitrep(store, theaterId, llmSt) {
     const claim = SR_CLAIM.test(best0(c).title) || (best0(c).llm && best0(c).llm.ty === "claim");
     const best = c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0];
     const field = c.items.every(i => !i.mainstream);
-    return { field, title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, srcs: srcs.slice(0, 6),
-      links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
+    // raw = at least one short eyewitness-style post from a non-official field source; long or analytical posts count as articles
+    const fieldItems = c.items.filter(isFieldItem);
+    const rawItems = fieldItems.filter(i => i.title.length <= 280 && !ANALYSIS_RE.test(i.title) && !STATEMENT_RE.test(i.title) && obsOf(i.title) && !(i.llm && (i.llm.ty === "analysis" || i.llm.ty === "noise")));
+    const allArticle = c.items.every(i => i.kind === "article");
+    const ptype = rawItems.length ? "raw" : (allArticle || (!c.items.some(i => CRITICAL_RE.test(i.title)) && c.items.every(i => ANALYSIS_RE.test(i.title) || STATEMENT_RE.test(i.title))) ? "article" : (fieldItems.length && !fieldItems.some(i => i.title.length <= 280) ? "article" : "flash"));
+    const firstRaw = (rawItems.length ? rawItems : c.items).slice().sort((a, b) => (a.d < b.d ? -1 : 1))[0];
+    const shown = ptype === "raw" ? firstRaw : best;
+    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: shown.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, nsrc: srcs.length, srcs: srcs.slice(0, 6),
+      links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: shown.lat != null ? shown.lat : best.lat, lon: shown.lon != null ? shown.lon : best.lon };
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
-  const stream = clusters.filter(c => c.t >= w24 && (c.crit || c.tier !== "initial" || c.n >= 2 || (CFG.fieldFirst && c.field && regionOf(c.title)))).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
+  const showArticles = showArt || CFG.showArticles;
+  const stream = clusters.filter(c => c.t >= w24 && (showArticles || c.ptype !== "article") && (c.ptype === "raw" ? (c.crit || c.obs || regionOf(c.title) || gazLocate(c.title)) : false) || (c.t >= w24 && (showArticles || c.ptype !== "article") && c.ptype !== "raw" && (c.crit || c.tier !== "initial" || c.n >= 2 || (CFG.fieldFirst && c.field && regionOf(c.title))))).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
     let lat = c.lat, lon = c.lon;
     if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
     return { ...c, id: hashId(c.title), lat, lon };
   });
   const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
-  const breaking = clusters.filter(c => c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
+  const breaking = clusters.filter(c => (showArticles || c.ptype !== "article") && c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
   const bset = new Set(breaking);
   const rest = clusters.filter(c => !bset.has(c) && c.t >= w24 && (c.crit || c.n >= 2 || c.tier !== "initial"));
   const byTier = k => rest.filter(c => c.tier === k).sort((a, b) => (a.t < b.t ? 1 : -1));
@@ -1328,7 +1354,7 @@ export default {
       const store = await loadStore(env);
       if (!store.lastFast || Date.now() - stampMs(store.lastFast) > 3 * 60 * 1000) ctx.waitUntil(ingestLite(env));
       const lst = await llmState(env); lst.enabled = !!env.AI;
-      const r = buildSitrep(store, url.searchParams.get("theater") || "all", lst);
+      const r = buildSitrep(store, url.searchParams.get("theater") || "all", lst, url.searchParams.get("articles") === "1");
       if (env.AI && lst.used < aiBudget()) {   // backfill labels for recent uncovered reports (bounded by the daily budget)
         const unl = srcPool(store, 6, lst.cache).filter(i => !i.llm).slice(0, AI_BATCH);
         if (unl.length) ctx.waitUntil(llmEnrichItems(env, unl));
