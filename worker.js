@@ -806,6 +806,129 @@ function buildReport(store) {
   };
 }
 
+// ---- Situation report v2: tiered by confidence, per theater, burst-aware ----
+const THEATERS = [
+  { id: "all", he: "הכל" },
+  { id: "iran", he: "איראן", re: /איראן|iran|tehran|טהרן|ایران|طهران|irgc|פורדו|נתנז|natanz|fordow|isfahan/iu },
+  { id: "israel", he: "ישראל · עזה · לבנון", re: /ישראל|israel|gaza|עזה|غزة|idf|צה"ל|lebanon|לבנון|hezbollah|חיזבאללה|hamas|חמאס|west bank|הגדה|golan|גולן|beirut|בירות|بيروت|لبنان/iu },
+  { id: "hormuz", he: "הורמוז · מפרץ · ים סוף", re: /hormuz|הורמוז|مضيق|tanker|מכלית|ukmto|persian gulf|מפרץ|red sea|ים סוף|bab al|houthi|חות|yemen|תימן|الحوثي|shipping|vessel|oil/iu },
+  { id: "levant", he: "סוריה · עיראק · ירדן", re: /syria|סוריה|סורי|iraq|עיראק|jordan|ירדן|الأردن|سوريا|العراق|damascus|דמשק|baghdad|amman|עמאן/iu },
+  { id: "us", he: "ארה\"ב · סעודיה · מפרץ", re: /\bU\.?S\.?\b|united states|pentagon|ארה"ב|פנטגון|trump|טראמפ|saudi|סעוד|السعودية|centcom|carrier|נושאת/iu },
+  { id: "europe", he: "אוקראינה · רוסיה · נאט\"ו", re: /ukrain|אוקראינה|russia|רוסיה|moscow|kyiv|nato|נאט"ו|kremlin|putin|פוטין|zelensk/iu },
+];
+const SR_NOISE = /contract|awarded|impeach|test-fired|cartel|lawsuit|firing squad|\u05d7\u05d5\u05d6\u05d4 \u05e8\u05db\u05e9|\u05e2\u05ea\u05d9\u05e8\u05d4/iu;
+const SR_CLAIM = /\b(says?|said|claims?|claimed|alleged(?:ly)?|reportedly|reports?)\b|\u05d8\u05d5\u05e2\u05e0|\u05de\u05d3\u05d5\u05d5\u05d7|\u05dc\u05d3\u05d1\u05e8\u05d9|\u05d3\u05d5\u05d5\u05d7\u05d5|\u05d1\u05d9\u05d3\u05d9\u05e2\u05d5\u05ea|\u05e0\u05d8\u05e2\u05e0\u05d4/iu;
+const SR_STOP = new Set("with that this from have been were will after over into says said their about than also could would more most amid near between during against report reports according".split(" "));
+function srTokens(t) {
+  const m = (t || "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/);
+  const s = new Set();
+  for (const w of m) { if (w.length >= 4 && !SR_STOP.has(w)) s.add(w); else if (/^\d{2,}$/.test(w)) s.add(w); }
+  return s;
+}
+function srSim(a, b) {
+  let inter = 0; for (const x of a) if (b.has(x)) inter++;
+  const mn = Math.min(a.size, b.size);
+  return mn >= 3 ? inter / mn : 0;
+}
+function stampMsOf(s) { return s && s.length >= 14 ? Date.parse(s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8)+"T"+s.slice(8,10)+":"+s.slice(10,12)+":"+s.slice(12,14)+"Z") : 0; }
+function ageMin(s) { const m = stampMsOf(s); return m ? Math.max(0, Math.round((Date.now() - m) / 60000)) : null; }
+
+function srcPool(store, hours) {
+  const cut = nowStampMinus(hours * 3600 * 1000);
+  const seen = new Set(), out = [];
+  function add(it) { if (!it.title || !it.d || it.d < cut || seen.has(it.id)) return; seen.add(it.id); out.push(it); }
+  for (const f of store.feed || []) add({ id: f.id, d: f.d, src: f.a1 || "", title: f.title, url: f.url || "", mainstream: f.src !== TG_LABEL_SRC, kind: f.kind, crit: !!f.critical });
+  for (const e of store.events || []) {
+    if (e.src === "rss" || e.src === TG_LABEL_SRC) add({ id: e.id, d: e.d, src: e.a1 || "", title: e.place || "", url: e.url || "", mainstream: e.src === "rss", kind: e.kind || (e.src === "rss" ? "flash" : "live"), crit: !!e.etype, lat: e.lat, lon: e.lon });
+  }
+  for (const b of store.breaking || []) add({ id: b.id, d: b.t, src: b.src || "", title: b.title, url: b.url || "", mainstream: b.tier !== "unverified", kind: b.srcKind, crit: true, brk: b.sev });
+  return out;
+}
+
+function clusterItems(items) {
+  items.sort((a, b) => (a.d < b.d ? 1 : -1));
+  const cl = [];
+  for (const it of items) {
+    it.tok = srTokens(it.title);
+    let hit = null;
+    for (const c of cl) if (srSim(it.tok, c.tok) >= 0.5) { hit = c; break; }
+    if (!hit) { hit = { items: [], tok: new Set(it.tok) }; cl.push(hit); }
+    hit.items.push(it);
+    for (const x of it.tok) hit.tok.add(x);
+  }
+  return cl;
+}
+
+function tierOf(c) {
+  const srcs = new Set(c.items.map(i => i.src.toLowerCase()));
+  const main = new Set(c.items.filter(i => i.mainstream).map(i => i.src.toLowerCase()));
+  if (main.size >= 1 && srcs.size >= 2) return { key: "verified", he: "מאומת", why: "לפחות שני מקורות נפרדים, ביניהם גוף חדשות מוכר" };
+  if (main.size === 1) return { key: "probable", he: "סביר", why: "גוף חדשות מוכר אחד, ללא אישור שני" };
+  if (srcs.size >= 2) return { key: "probable", he: "סביר", why: "כמה ערוצי טלגרם (ייתכן מקור משותף)" };
+  return { key: "initial", he: "אינדיקציה ראשונית", why: "ערוץ טלגרם בודד, לא מאומת" };
+}
+
+function best0(c) { return c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0]; }
+
+function buildSitrep(store, theaterId) {
+  const th = THEATERS.find(t => t.id === theaterId) || THEATERS[0];
+  const pool = srcPool(store, 72).filter(i => th.re ? th.re.test(i.title) : true);
+  const clusters = clusterItems(pool).map(c => {
+    const t = tierOf(c);
+    const newest = c.items[0], oldest = c.items[c.items.length - 1];
+    const srcs = Array.from(new Set(c.items.map(i => i.src)));
+    const burst = srcs.length >= 3 && (stampMsOf(newest.d) - stampMsOf(oldest.d)) <= 20 * 60000 && ageMin(newest.d) <= 90;
+    const txt = c.items.map(i => i.title).join(" ");
+    const crit = c.items.some(i => CRITICAL_RE.test(i.title)) && !c.items.some(i => SR_NOISE.test(i.title)) && (th.id === "europe" || !NON_ME_RE.test(best0(c).title) || ME_TERMS.test(txt));
+    const claim = SR_CLAIM.test(best0(c).title);
+    const best = c.items.slice().sort((a, b) => (b.mainstream - a.mainstream) || (a.d < b.d ? 1 : -1))[0];
+    return { title: best.title, t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, n: c.items.length, srcs: srcs.slice(0, 6),
+      links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: best.lat, lon: best.lon };
+  });
+  const w24 = nowStampMinus(24 * 3600 * 1000);
+  const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
+  const breaking = clusters.filter(c => c.age != null && c.age <= 180 && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
+  const bset = new Set(breaking);
+  const rest = clusters.filter(c => !bset.has(c) && c.t >= w24 && (c.crit || c.n >= 2 || c.tier !== "initial"));
+  const byTier = k => rest.filter(c => c.tier === k).sort((a, b) => (a.t < b.t ? 1 : -1));
+  const verified = byTier("verified").slice(0, 10), probable = byTier("probable").slice(0, 10);
+  const initial = rest.filter(c => c.tier === "initial" && c.crit).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 10);
+  // watchlist: derived from data, not a forecast
+  const h6 = nowStampMinus(6 * 3600 * 1000), h12 = nowStampMinus(12 * 3600 * 1000);
+  const watch = [];
+  const needConfirm = clusters.filter(c => c.tier === "initial" && c.crit && c.age != null && c.age <= 360).slice(0, 3);
+  for (const c of needConfirm) watch.push("לחכות לאישור שני או לגורם רשמי: " + c.title.slice(0, 110));
+  for (const t of THEATERS.slice(1)) {
+    if (th.id !== "all" && th.id !== t.id) continue;
+    const items = pool.filter(i => t.re.test(i.title));
+    const a = items.filter(i => i.d >= h6).length, b = items.filter(i => i.d < h6 && i.d >= h12).length;
+    if (a >= 5 && b >= 3 && a >= b * 1.5 + 2) watch.push(`${t.he}: קצב הדיווחים עלה (${a} ב-6 שעות האחרונות מול ${b} ב-6 השעות שלפניהן). לעקוב אם זו הסלמה או חזרה על אותה ידיעה.`);
+  }
+  for (const a of (store.alerts || []).filter(a => a.t >= w24).slice(0, 2)) if (a.title || a.text) watch.push("איתות הסלמה פעיל: " + String(a.title || a.text).slice(0, 110));
+  if (!watch.length) watch.push("אין כרגע סימן חריג בנתונים שדורש מעקב מיוחד. זה לא אומר שאין סיכון, רק שהמקורות שלנו שקטים.");
+  // coverage honesty
+  const lastFast = ageMin(store.lastFast), lastFull = ageMin(store.updated);
+  return {
+    theater: th.id, theaterHe: th.he, theaters: THEATERS.map(t => ({ id: t.id, he: t.he })),
+    generated: store.updated, fastAge: lastFast, fullAge: lastFull,
+    counts: { items72h: pool.length, clusters: clusters.length, breaking: breaking.length, verified: verified.length, probable: probable.length, initial: initial.length },
+    breaking, verified, probable, initial, watch,
+    rules: "מאומת: לפחות שני מקורות נפרדים, ביניהם גוף חדשות מוכר. סביר: גוף חדשות מוכר אחד או כמה ערוצי טלגרם. אינדיקציה ראשונית: ערוץ טלגרם בודד. מתפרץ: 3 מקורות או יותר על אותה ידיעה תוך 20 דקות. איחוד ידיעות נעשה לפי חפיפת מילים באותה שפה, לכן אישור בין שפות שונות לא מזוהה ויכול להחמיר את הדירוג.",
+    gaps: "לא מכוסה: ספינות (AIS), תצלומי לווין טקטיים, וטוויטר ישיר. טלגרם נסרק מרשימת ערוצים סופית ולא מכל הרשת. רשימת המעקב נגזרת מהנתונים ואינה תחזית.",
+    disclaimer: "ניתוח אוטומטי של מקורות פתוחים. לא אישור רשמי ולא מידע מודיעיני. דיווח לא מאומת מסומן ככזה ולא מוצג כעובדה.",
+  };
+}
+
+function sitrepText(r) {
+  const L = [];
+  L.push(`דוח מצב · ${r.theaterHe}`);
+  const sec = (name, arr) => { if (!arr.length) return; L.push("", name); for (const c of arr) L.push(`- ${c.burst ? "[מתפרץ] " : ""}${c.title.slice(0, 160)} (${c.tierHe}${c.claim ? ", טענה בלבד" : ""}, לפני ${c.age} ד', ${c.srcs.join(", ")})${c.links[0] ? " " + c.links[0].u : ""}`); };
+  sec("מתפרץ עכשיו", r.breaking); sec("מאומת", r.verified); sec("סביר", r.probable); sec("עדיין לא מאומת", r.initial);
+  L.push("", "מעקב 24-72 שעות"); for (const w of r.watch) L.push("- " + w);
+  L.push("", r.gaps, r.disclaimer);
+  return L.join("\n");
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -841,6 +964,13 @@ export default {
       const st0 = await loadStore(env);
       const r = await pushBreaking(env, [{ sev: "high", title: "\u05D1\u05D3\u05D9\u05E7\u05EA \u05DE\u05E2\u05E8\u05DB\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u2014 \u05D0\u05D9\u05DF \u05D0\u05D9\u05E8\u05D5\u05E2 \u05D0\u05DE\u05D9\u05EA\u05D9", region: "", tier: "verified" }], st0.ntfyTopic);
       return json({ ok: true, push: r, topicSet: !!st0.ntfyTopic });
+    }
+    if (url.pathname === "/api/sitrep") {
+      const store = await loadStore(env);
+      if (!store.lastFast || Date.now() - stampMs(store.lastFast) > 3 * 60 * 1000) ctx.waitUntil(ingestLite(env));
+      const r = buildSitrep(store, url.searchParams.get("theater") || "all");
+      if (url.searchParams.get("format") === "text") return new Response(sitrepText(r), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      return json(r);
     }
     if (url.pathname === "/api/report") {
       const store = await loadStore(env);
