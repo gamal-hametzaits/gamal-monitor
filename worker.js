@@ -201,14 +201,12 @@ for (const f of RSS_FEEDS) { f.lang = f.lang || (/[א-ת]/.test(f.name) ? "he" :
 
 // per-run selection: flash feeds always, the rest rotate so one invocation stays under the free-tier subrequest cap
 function runCounter(slot) { return Math.floor((typeof slot === "number" ? slot : Math.floor(Date.now() / 60000)) / 5); }
-function selectFeeds(store, slot, nRot) {
+function selectFeeds(store, slot, nRot, nFlash, nAgg) {
   const rc = runCounter(slot), hl = (store && store.srcHealth) || {};
-  const ok = f => { const h = hl[f.name]; return !(h && h.consec >= 6 && rc % 12 !== 0); };   // dead sources are probed 1 run in 12
-  const flash = RSS_FEEDS.filter(f => f.flash && ok(f) && !CFG.off.includes(f.name));
-  const rest = RSS_FEEDS.filter(f => !f.flash && ok(f) && !CFG.off.includes(f.name));
-  const picks = [];
-  for (let i = 0; i < Math.min(nRot, rest.length); i++) picks.push(rest[(rc * nRot + i) % rest.length]);
-  return flash.concat(picks);
+  const ok = f => { const h = hl[f.name]; return !(h && h.consec >= 6 && rc % 12 !== 0) && !CFG.off.includes(f.name); };   // dead sources are probed 1 run in 12
+  const take = (arr, n) => { const out = []; for (let i = 0; i < Math.min(n, arr.length); i++) out.push(arr[(rc * n + i) % arr.length]); return out; };
+  const flash = RSS_FEEDS.filter(f => f.flash && ok(f)), rest = RSS_FEEDS.filter(f => !f.flash && ok(f)), agg = AGG_FEEDS.filter(ok);
+  return take(flash, nFlash).concat(take(agg, nAgg), take(rest, nRot));
 }
 function mergeHealth(store, hl) {
   const s = store.srcHealth = store.srcHealth || {};
@@ -224,7 +222,7 @@ function noteHealth(hl, feed, ok, n, newestTs) {
 
 // ---- engine settings (KV "settings"); every value is clamped to what the free tier can carry ----
 const DEFAULT_CFG = { off: [], tgOff: [], llm: { on: true, budget: 3000 }, burst: { minSrc: 3, winMin: 20, ageMin: 90 }, breakingWinMin: 180, streamHours: 24,
-  push: { on: true, critOnly: false }, rotation: { rss: 12, tg: 6 }, clientPollSec: 45, hideTg: false };
+  push: { on: true, critOnly: false }, rotation: { rss: 8, tg: 6 }, clientPollSec: 45, hideTg: false };
 const CFG_LIMITS = { "llm.budget": [0, 8000], "burst.minSrc": [2, 8], "burst.winMin": [5, 60], "burst.ageMin": [15, 240], breakingWinMin: [30, 720], streamHours: [6, 72], "rotation.rss": [4, 16], "rotation.tg": [2, 8], clientPollSec: [20, 300] };
 let CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
 function clampN(v, lo, hi, d) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
@@ -244,6 +242,24 @@ function cleanCfg(x) {
 }
 async function applyCfg(env) { try { const s = await env.MONITOR_KV.get("settings"); CFG = cleanCfg(s ? JSON.parse(s) : {}); } catch { CFG = cleanCfg({}); } return CFG; }
 async function sha(s) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("gamal-monitor:" + s)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, "0")).join(""); }
+
+const AGG_FEEDS = [
+  { url: "https://news.google.com/rss/search?q=Israel%20OR%20Gaza%20OR%20Lebanon%20OR%20Hezbollah%20OR%20Hamas+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: ישראל/עזה/לבנון", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=Iran%20OR%20IRGC%20OR%20Hormuz%20OR%20Tehran+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: Iran/Hormuz", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=Houthi%20OR%20Yemen%20OR%20%22Red%20Sea%22%20OR%20Sanaa+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: Houthi/Red Sea", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=Syria%20OR%20Iraq%20OR%20militia%20OR%20Damascus%20OR%20Baghdad+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: Syria/Iraq", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=missile%20OR%20airstrike%20OR%20%22drone%20attack%22%20OR%20intercepted%20OR%20sirens+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: strikes", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=Saudi%20OR%20UAE%20OR%20Qatar%20OR%20Kuwait%20OR%20Bahrain%20attack%20OR%20drone%20OR%20missile+when:2h&hl=en-US&gl=US&ceid=US:en", name: "Google News EN: Gulf", lang: "en", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=%D7%98%D7%99%D7%9C%20OR%20%D7%A9%D7%99%D7%92%D7%95%D7%A8%20OR%20%D7%99%D7%99%D7%A8%D7%95%D7%98%20OR%20%D7%90%D7%96%D7%A2%D7%A7%D7%94%20OR%20%D7%9B%D7%98%D7%91%22%D7%9D+when:2h&hl=he&gl=IL&ceid=IL:he", name: "Google News HE: שיגורים", lang: "he", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=%D7%97%D7%99%D7%96%D7%91%D7%90%D7%9C%D7%9C%D7%94%20OR%20%D7%9C%D7%91%D7%A0%D7%95%D7%9F%20OR%20%D7%A2%D7%96%D7%94%20OR%20%D7%97%D7%9E%D7%90%D7%A1%20OR%20%D7%AA%D7%A7%D7%99%D7%A4%D7%94+when:2h&hl=he&gl=IL&ceid=IL:he", name: "Google News HE: צפון/דרום", lang: "he", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=%D7%90%D7%99%D7%A8%D7%90%D7%9F%20OR%20%D7%97%D7%95%D7%AA%27%D7%99%D7%9D%20OR%20%D7%AA%D7%99%D7%9E%D7%9F%20OR%20%D7%A1%D7%95%D7%A8%D7%99%D7%94+when:2h&hl=he&gl=IL&ceid=IL:he", name: "Google News HE: איראן/תימן", lang: "he", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=%D8%BA%D8%A7%D8%B1%D8%A9%20OR%20%D8%B5%D9%88%D8%A7%D8%B1%D9%8A%D8%AE%20OR%20%D9%82%D8%B5%D9%81%20OR%20%D9%85%D8%B3%D9%8A%D8%B1%D8%A9+when:2h&hl=ar&gl=SA&ceid=SA:ar", name: "Google News AR: قصف", lang: "ar", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://news.google.com/rss/search?q=%D8%A5%D9%8A%D8%B1%D8%A7%D9%86%20OR%20%D8%A7%D9%84%D8%AD%D9%88%D8%AB%D9%8A%20OR%20%D8%AD%D8%B2%D8%A8%20%D8%A7%D9%84%D9%84%D9%87%20OR%20%D8%BA%D8%B2%D8%A9+when:2h&hl=ar&gl=SA&ceid=SA:ar", name: "Google News AR: إيران/اليمن", lang: "ar", rel: "media", me: true, flash: false, agg: "google" },
+  { url: "https://www.bing.com/news/search?q=Israel%20strike%20OR%20attack%20OR%20missile&format=rss", name: "Bing News: Israel strike", lang: "en", rel: "media", me: true, flash: false, agg: "bing" },
+  { url: "https://www.bing.com/news/search?q=Iran%20OR%20Hormuz%20OR%20IRGC%20attack&format=rss", name: "Bing News: Iran", lang: "en", rel: "media", me: true, flash: false, agg: "bing" },
+  { url: "https://www.bing.com/news/search?q=Houthi%20OR%20Yemen%20OR%20%22Red%20Sea%22%20attack&format=rss", name: "Bing News: Yemen/Houthi", lang: "en", rel: "media", me: true, flash: false, agg: "bing" },
+];
+const STATE_RE = /^(RT|TASS|ТАСС|Press ?TV|Tasnim|Mehr|IRNA|Al ?Mayadeen|SANA|Xinhua|CGTN|Sputnik|Anadolu|TRT|PressTV|\u0627\u0644\u0645\u064a\u0627\u062f\u064a\u0646)/i;
 
 const CAMERAS = [
   { id: "kotel-aish", name: "הכותל המערבי, ירושלים", lat: 31.7767, lon: 35.2345, kind: "link", url: "https://aish.com/western-wall-page/", src: "Aish Kotel Cam", note: "עמוד שידור חי חיצוני (YouTube) · רענון רציף · אין סנפשוט מוטבע" },
@@ -428,8 +444,16 @@ async function fetchRss(feed, feedOut, hl) {
       const t = (it.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || "";
       const ln = (it.match(/<link[^>]*>([^<]+)<\/link>/) || [])[1] || (it.match(/<link[^>]*href="([^"]+)"/) || [])[1] || "";
       const pd = (it.match(/<(?:pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/) || [])[1] || "";
-      const title = unxml(t).slice(0, 200);
+      let title = unxml(t).slice(0, 200);
       if (!title) continue;
+      let fname = feed.name, frel = feed.rel;
+      if (feed.agg) {   // aggregator: credit the real outlet so independent-source counting stays honest
+        const sm = (it.match(/<source[^>]*>([^<]+)<\/source>/) || it.match(/<News:Source>([^<]+)<\/News:Source>/) || [])[1];
+        const outlet = sm ? unxml(sm).slice(0, 40) : (title.match(/ - ([^-]{2,40})$/) || [])[1] || "";
+        if (!outlet) continue;
+        title = title.replace(new RegExp("\\s+[-\\u2013|]\\s+" + outlet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"), "").trim();
+        fname = outlet; frel = STATE_RE.test(outlet) ? "state" : "media";
+      }
       const ts = Date.parse(pd);
       if (isFinite(ts)) newestTs = Math.max(newestTs, ts);
       if (isFinite(ts) && ts < Date.now() - 36 * 3600 * 1000) continue;   // stale entries never enter the live pipeline
@@ -440,15 +464,15 @@ async function fetchRss(feed, feedOut, hl) {
       if (!g) {
         const region = regionOf(title);
         if (region || et || CRITICAL_RE.test(title)) feedOut.push({ id: "rssf-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-          a1: feed.name, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified", kind: feed.flash ? "flash" : "article", rel: feed.rel, lang: feed.lang,
+          a1: fname, title, url: unxml(ln).slice(0, 300), src: "rss", tier: "verified", kind: feed.flash ? "flash" : "article", rel: frel, lang: feed.lang,
           region, critical: !!(et || CRITICAL_RE.test(title)) });
         continue;
       }
       out.push({
         id: "rss-" + hashId(ln || title), d: isFinite(ts) ? toStamp(ts) : nowStamp(),
-        a1: feed.name, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
+        a1: fname, a2: "", code: "", root: "", quad: "", gold: 0, ment: 0, arts: 0,
         tone: 0, place: title, ctry: "", lat: g.lat, lon: g.lon, prec: "city", geo: "gazetteer",
-        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et, kind: feed.flash ? "flash" : "article", rel: feed.rel,
+        url: unxml(ln).slice(0, 300), cat: et ? "conflict" : (cat === "other" ? "diplomacy" : cat), src: "rss", etype: et, kind: feed.flash ? "flash" : "article", rel: frel,
       });
     }
     if (hl) noteHealth(hl, feed, items.length > 0, items.length, newestTs);
@@ -712,7 +736,7 @@ async function ingestLite(env) {
     const feedOut = [];
     const slot = Math.floor(Date.now() / 60000);
     const hl = {};
-    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, CFG.rotation.rss).map(f => fetchRss(f, feedOut, hl)))]);
+    const [tgE, rssArr] = await Promise.all([fetchTelegram(store, feedOut, slot), Promise.all(selectFeeds(store, slot, CFG.rotation.rss, 14, 4).map(f => fetchRss(f, feedOut, hl)))]);
     mergeHealth(store, hl);
     const extras = tgE.concat(...rssArr);
     const seen2 = new Set(store.events.map(e => e.id));
@@ -860,7 +884,7 @@ async function ingestInner(env) {
   TG_DEBUG = [];
   const feedOut = [];
   const hl = {};
-  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, Math.min(10, CFG.rotation.rss)).map(f => fetchRss(f, feedOut, hl)))]);
+  const [usgsE, firmsE, tgE, rssArr] = await Promise.all([fetchUsgs(), fetchFirms(), fetchTelegram(store, feedOut), Promise.all(selectFeeds(store, undefined, Math.min(6, CFG.rotation.rss), 8, 2).map(f => fetchRss(f, feedOut, hl)))]);
   mergeHealth(store, hl);
   const extras = adsb.concat(usgsE, firmsE, tgE, ...rssArr);
   const seen2 = new Set(store.events.map(e => e.id));
@@ -1221,7 +1245,7 @@ export default {
     if (url.pathname === "/api/settings") {
       const raw = await env.MONITOR_KV.get("settings");
       const pinH = await env.MONITOR_KV.get("settingsPin");
-      if (request.method !== "POST") return json({ settings: CFG, defaults: DEFAULT_CFG, limits: CFG_LIMITS, pinSet: !!pinH, rss: RSS_FEEDS.map(f => ({ name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash })), tg: tgChannels(await loadStore(env)), freeTier: { aiNeuronsPerDay: 10000, workerSubrequests: 50 } });
+      if (request.method !== "POST") return json({ settings: CFG, defaults: DEFAULT_CFG, limits: CFG_LIMITS, pinSet: !!pinH, rss: RSS_FEEDS.concat(AGG_FEEDS).map(f => ({ name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash })), tg: tgChannels(await loadStore(env)), freeTier: { aiNeuronsPerDay: 10000, workerSubrequests: 50 } });
       let b; try { b = await request.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
       const pin = String(b.pin || "");
       if (pin.length < 4 || pin.length > 64) return json({ ok: false, error: "pin 4-64 chars" }, 400);
@@ -1242,7 +1266,7 @@ export default {
     }
     if (url.pathname === "/api/sources") {
       const store = await loadStore(env), hl = store.srcHealth || {};
-      const rows = RSS_FEEDS.map(f => { const h = hl[f.name] || {}; const st = !h.last ? "untested" : (h.consec >= 6 ? "down" : h.consec > 0 ? "flaky" : (h.newest && Date.now() - h.newest > 72 * 3600 * 1000 ? "stale" : "ok")); return { name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash, status: st, ok: h.okN || 0, fail: h.failN || 0, items: h.n || 0, newestAgeMin: h.newest ? Math.round((Date.now() - h.newest) / 60000) : null }; });
+      const rows = RSS_FEEDS.concat(AGG_FEEDS).map(f => { const h = hl[f.name] || {}; const st = !h.last ? "untested" : (h.consec >= 6 ? "down" : h.consec > 0 ? "flaky" : (h.newest && Date.now() - h.newest > 72 * 3600 * 1000 ? "stale" : "ok")); return { name: f.name, lang: f.lang, rel: f.rel, flash: !!f.flash, status: st, ok: h.okN || 0, fail: h.failN || 0, items: h.n || 0, newestAgeMin: h.newest ? Math.round((Date.now() - h.newest) / 60000) : null }; });
       const sum = {}; for (const r of rows) sum[r.status] = (sum[r.status] || 0) + 1;
       return json({ rss: { total: rows.length, summary: sum, sources: rows }, telegram: { total: tgChannels(store).length, perRun: CFG.rotation.tg }, note: "RSS rotates: flash feeds every run, the rest in batches, to stay under the free-tier subrequest cap" });
     }
