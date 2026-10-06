@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0B0B0B">
 <title>הגמל · מוניטור גיאופוליטי — מזרח תיכון</title>
 <meta name="description" content="מוניטור אירועים גיאופוליטיים במזרח התיכון — נתוני GDELT חיים, מפה, איתותי הסלמה ודוחות.">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -211,6 +212,40 @@ details.raw{border-bottom:1px solid var(--line)}details.raw summary{padding:12px
   body.modal-open #bnav{display:none}
   body[data-view=map] #mapwrap{height:calc(100dvh - 86px - env(safe-area-inset-bottom))}
 }
+
+/* calm "case file" theme: muted ink palette, paper text, restrained accents, no flashing */
+:root{--bg:#14171A;--panel:#1A1E22;--line:#2A3036;--txt:#E7E3DA;--dim:#8F968F;--red:#B4574E;--orange:#C28A5B;--yellow:#C9AE6A;--green:#7FA98B;--blue:#7E9FBF;--gray:#7C847F;--acc:#C9AE6A}
+body{background:var(--bg);font-weight:400;letter-spacing:.005em}
+.brand{font-weight:600;letter-spacing:0}.brand em{color:var(--acc)}
+.dot{background:var(--green);animation:none;width:7px;height:7px}
+.brk.crit,.brkpulse,#hotchip,.new{animation:none!important}
+.brkpulse{background:var(--red)}
+.new{background:rgba(201,174,106,.10)}
+#hotchip{background:transparent;color:var(--txt);border:1px solid var(--red);font-weight:600}
+.stat .num{font-weight:500}
+.card2,.it{background:transparent}
+.card2{border-inline-start-width:2px;padding:14px 16px}
+.card2 .ttl{font-family:"Frank Ruhl Libre",Heebo,serif;font-size:17px;line-height:1.55;font-weight:500}
+.card2.burst{background:rgba(180,87,78,.07)}
+.card2 .bd,.chip,#modal .badge{background:transparent!important;border:1px solid currentColor;color:var(--dim);font-weight:500;border-radius:3px;font-family:"IBM Plex Mono",Heebo,monospace;font-size:10.5px;letter-spacing:.03em}
+.card2 .bd.verified,#modal .badge.verified{color:var(--green)}
+.card2 .bd.probable,#modal .badge.probable{color:var(--yellow)}
+.card2 .bd.initial,#modal .badge.initial{color:var(--orange)}
+.card2 .bd.burst,#modal .badge.burst{color:var(--red)}
+.card2 .bd.claim,#modal .badge.claim{color:var(--dim);border-style:dashed}
+.card2 .acts button,.card2 .acts a{background:transparent;font-weight:500;border-color:var(--line);color:var(--dim)}
+.card2 .acts .pin.on{color:var(--acc);border-color:var(--acc)}
+.card2 details a{color:var(--blue)}
+#bnav{background:var(--panel)}
+#bnav button{font-weight:500}
+#bnav button.on{color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+#bnav b{background:transparent;color:var(--red);border:1px solid var(--red);font-weight:500}
+.panel-h{font-weight:600}.panel-h .tag{color:var(--acc)}
+.lf.crit{border-inline-start-color:var(--red)}
+.sk{background:linear-gradient(90deg,#171B1E,#1F2428,#171B1E);background-size:200% 100%}
+.fbtn{background:rgba(20,23,26,.9);color:var(--dim);font-weight:500}
+.fbtn.active{border-color:var(--acc);color:var(--txt)}
+#reportbtn{background:var(--panel);color:var(--acc);border:1px solid var(--acc);font-weight:600}
 </style>
 </head>
 <body data-view="feed">
@@ -228,7 +263,7 @@ details.raw{border-bottom:1px solid var(--line)}details.raw summary{padding:12px
 <main>
   <aside>
   <div class="v-feed">
-    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">🔥 מתפרץ</button><button data-t="ver">מאומת</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
+    <div id="tb"><div id="thr"></div><div id="tiers"><button data-t="all" class="on">הכל</button><button data-t="burst">מתפרץ</button><button data-t="ver">מאומת</button><button data-t="pin">⭐ <span id="pincount">0</span></button><input id="q" type="search" placeholder="חיפוש" aria-label="חיפוש"><button id="fullrep">📄 דוח מלא</button></div></div>
     <div id="stream"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
     <div id="streamnote"></div>
   </div>
@@ -625,7 +660,7 @@ function updateBeat(){
 function hotChip(){
   const cut = toStamp(Date.now()-3*3600*1000);
   const n = (DATA.breaking||[]).filter(a=>a.t>=cut).length;
-  const c = document.getElementById('hotchip'); c.style.display = n ? 'inline-block' : 'none'; c.textContent = '🔥 '+n+' מתפרצים · דוח';
+  const c = document.getElementById('hotchip'); c.style.display = n ? 'inline-block' : 'none'; c.textContent = n+' מתפרצים · דוח';
   document.getElementById('nbrk').textContent = n || '';
 }
 function markNew(){
@@ -657,7 +692,7 @@ async function loadSitrep(){
     document.querySelectorAll('#rtabs .tab').forEach(b=>b.onclick=()=>{SR_TH=b.dataset.t; loadSitrep();});
     const stale = d.fastAge!=null && d.fastAge>10 ? ` · <b style="color:var(--orange)">סריקת המבזקים האחרונה לפני ${d.fastAge} דק׳</b>` : '';
     document.getElementById('rgen').innerHTML = `${esc(d.theaterHe)} · ${d.counts.items72h} דיווחים ב-72 שעות · סריקת מבזקים אחרונה לפני ${d.fastAge==null?'?':d.fastAge} דק׳`+stale;
-    box.innerHTML = srSec('🔥 מתפרץ עכשיו (3 שעות אחרונות)', d.breaking)
+    box.innerHTML = srSec('מתפרץ עכשיו (3 שעות אחרונות)', d.breaking)
       + srSec('מאומת', d.verified, '24 שעות') + srSec('סביר', d.probable, '24 שעות') + srSec('עדיין לא מאומת', d.initial, 'דיווחי טלגרם בודדים')
       + `<div class="sec"><h4>מעקב 24-72 שעות <small>נגזר מהנתונים, לא תחזית</small></h4>${d.watch.map(w=>`<div class="it">${esc(w)}</div>`).join('')}</div>`
       + `<div class="rules">${esc(d.rules)}<br><b>מודל עזר:</b> ${d.llm.enabled?(d.llm.exhausted?'מכסת היום נגמרה, דירוג לפי כללים בלבד':'פעיל · '+d.llm.usedToday+' מתוך '+d.llm.budget+' נוירונים היום · '+d.llm.calls+' קריאות'+(d.llm.errors?' · '+d.llm.errors+' שגיאות':'')):'כבוי, דירוג לפי כללים בלבד'} (המודל מאחד ידיעות בין שפות ומסווג טענה/עובדה. הוא לא מעלה דירוג ולא מאמת.)</div><div class="gaps">${esc(d.gaps)}<br>${esc(d.disclaimer)}</div>`;
@@ -692,7 +727,7 @@ function cardHtml(c){
   const pinned = !!PINS[c.id];
   const lk = (c.links||[]);
   return `<div class="card2 ${cls}" data-sid="${c.id}"><div class="ttl" dir="auto">${escH(c.title)}</div>
-  <div class="row2"><span class="bd ${c.tier}">${escH(c.tierHe)}</span>${c.burst?'<span class="bd burst">🔥 מתפרץ</span>':''}${c.claim?'<span class="bd claim">טענה, לא עובדה</span>':''}${c.llmMerged?'<span class="bd mdl" title="אוחד בעזרת מודל, לא נספר לדירוג">איחוד מודל</span>':''}<span>לפני ${ago(c.age)}</span><span>${c.n>1?c.n+' דיווחים · ':''}<bdi>${escH((c.srcs||[]).slice(0,3).join(', '))}</bdi></span></div>
+  <div class="row2"><span class="bd ${c.tier}">${escH(c.tierHe)}</span>${c.burst?'<span class="bd burst">מתפרץ</span>':''}${c.claim?'<span class="bd claim">טענה, לא עובדה</span>':''}${c.llmMerged?'<span class="bd mdl" title="אוחד בעזרת מודל, לא נספר לדירוג">איחוד מודל</span>':''}<span>לפני ${ago(c.age)}</span><span>${c.n>1?c.n+' דיווחים · ':''}<bdi>${escH((c.srcs||[]).slice(0,3).join(', '))}</bdi></span></div>
   <div class="acts">${c.lat!=null?`<button data-act="map" data-lat="${c.lat}" data-lon="${c.lon}">🗺 במפה</button>`:''}${lk[0]?`<a href="${escH(lk[0].u)}" target="_blank" rel="noopener">🔗 מקור</a>`:''}<button class="pin ${pinned?'on':''}" data-act="pin">${pinned?'★ שמור':'☆ שמור'}</button><button data-act="share">📋</button></div>
   ${lk.length>1?`<details><summary>${lk.length} מקורות · ${escH(c.why||'')}</summary>${lk.map(l=>`<a href="${escH(l.u)}" target="_blank" rel="noopener"><bdi>${escH(l.s)}</bdi> ↗</a>`).join('')}</details>`:`<details><summary>למה הדירוג?</summary><span style="color:var(--dim)">${escH(c.why||'')}</span></details>`}</div>`;
 }
@@ -708,7 +743,7 @@ function renderStream(){
     if (Q) { const q=Q.toLowerCase(); items = items.filter(c=>c.title.toLowerCase().includes(q)||(c.srcs||[]).join(' ').toLowerCase().includes(q)); }
     if (TIER==='all' && !Q){
       const top = STREAM.breaking.slice(0,5);
-      if (top.length){ head = '<div class="hdrsec">🔥 מתפרץ עכשיו · 3 שעות אחרונות</div>'+top.map(cardHtml).join('')+'<div class="hdrsec" style="color:var(--dim);background:var(--bg)">כל הדיווחים · חדש לישן</div>'; items = items.filter(c=>!top.some(t=>t.id===c.id)); }
+      if (top.length){ head = '<div class="hdrsec">מתפרץ עכשיו · 3 שעות אחרונות</div>'+top.map(cardHtml).join('')+'<div class="hdrsec" style="color:var(--dim);background:var(--bg)">כל הדיווחים · חדש לישן</div>'; items = items.filter(c=>!top.some(t=>t.id===c.id)); }
     }
   }
   el.innerHTML = head + (items.length ? items.slice(0,80).map(cardHtml).join('') : '<div style="padding:30px 16px;color:var(--dim);text-align:center">אין דיווחים להצגה בסינון הזה. נסה "הכל" או זירה אחרת.</div>');
