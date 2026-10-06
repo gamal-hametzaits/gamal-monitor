@@ -1243,6 +1243,7 @@ function buildSitrep(store, theaterId, llmSt, showArt) {
     if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
     return { ...c, id: hashId(c.title), lat, lon };
   });
+  { const sk = new Set(); for (let i = 0; i < stream.length; i++) { const k = String(stream[i].title).toLowerCase().replace(/https?:\/\/\S+/g, "").replace(/[^a-z0-9\u0590-\u05ff\u0600-\u06ff]+/g, "").slice(0, 60); if (k && sk.has(k)) { stream.splice(i, 1); i--; } else sk.add(k); } }
   const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
   const breaking = clusters.filter(c => (showArticles ? c.ptype !== "article" : c.ptype === "raw") && c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
   const bset = new Set(breaking);
