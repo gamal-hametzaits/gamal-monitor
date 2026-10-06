@@ -78,6 +78,24 @@ aside{border-inline-end:1px solid var(--line);display:flex;flex-direction:column
 #modal h4{margin:18px 0 8px;font-size:14px;color:var(--dim)}
 #modal table{width:100%;border-collapse:collapse;font-size:13px}
 #modal td,#modal th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+
+#modal .tabs{scrollbar-width:none;display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin:10px 0 4px;-webkit-overflow-scrolling:touch}
+#modal .tab{flex:none;background:#181818;border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:6px 13px;font:700 13px Heebo;cursor:pointer;white-space:nowrap}
+#modal .tab.on{border-color:var(--red);background:#2a1214}
+#modal .sec{margin-top:16px}
+#modal .sec h4{margin:0 0 6px;font-size:15px;color:var(--txt);display:flex;align-items:center;gap:8px}
+#modal .sec h4 small{color:var(--dim);font-weight:400;font-size:12px}
+#modal .it{padding:9px 10px;border-inline-start:3px solid var(--gray);background:#161616;border-radius:6px;margin:6px 0;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+#modal .it.verified{border-color:var(--green)}#modal .it.probable{border-color:var(--yellow)}#modal .it.initial{border-color:var(--orange)}
+#modal .it.burst{border-color:var(--red);background:#241012}
+#modal .meta{font-size:12px;color:var(--dim);margin-top:3px}
+#modal .badge{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:800;color:#000;margin-inline-end:6px}
+#modal .badge.verified{background:var(--green)}#modal .badge.probable{background:var(--yellow)}#modal .badge.initial{background:var(--orange)}#modal .badge.burst{background:var(--red);color:#fff}#modal .badge.claim{background:#444;color:#fff}
+#modal .meta a{display:inline-block;color:var(--blue);margin-inline-end:8px}
+#modal .tools{display:flex;gap:8px;margin-top:10px}
+#modal .tools button,#modal #close{background:#222;color:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:700 13px Heebo;cursor:pointer}
+#modal .rules,#modal .gaps{font-size:12px;color:var(--dim);margin-top:12px;line-height:1.6}
+@media(max-width:600px){#modal .card{margin:0;border-radius:0;padding:16px;min-height:100%}}
 #modal .disc{margin-top:18px;font-size:12px;color:var(--dim)}
 #close{margin-top:16px;background:none;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 20px;font-family:Heebo;cursor:pointer}
 footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-size:12px;line-height:1.6}
@@ -149,13 +167,16 @@ footer{border-top:1px solid var(--line);padding:14px 20px;color:var(--dim);font-
 <div id="modal"><div class="card">
   <h2>דוח מצב · מזרח תיכון</h2>
   <div class="gen mono" id="rgen"></div>
+  <div class="tabs" id="rtabs"></div>
+  <div id="sitrep"><div class="line">טוען...</div></div>
+  <div class="tools"><button id="rcopy">העתק כטקסט</button><button id="rrefresh">רענן</button><button id="close">סגור</button></div>
+  <details style="margin-top:18px"><summary style="cursor:pointer;color:var(--dim);font-size:13px">נתוני GDELT סטטיסטיים · 24 שעות</summary>
   <div id="rlines"></div>
   <h4>מוקדים חמים (עימות / תנועות כוח, 24 שעות)</h4>
   <table id="rhot"><tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr></table>
   <h4>האירועים המסוקרים ביותר</h4>
   <table id="rnot"></table>
-  <div class="disc" id="rdisc"></div>
-  <button id="close">סגור</button>
+  <div class="disc" id="rdisc"></div></details>
 </div></div>
 
 <footer>
@@ -429,14 +450,43 @@ async function load(){
   renderStats(); renderBreaking(); renderAlerts(); renderLivefeed(); renderKinetic(); renderFeed(); renderMap(); renderLegend(); renderFilters(); renderTrend(); renderTg(); renderCams();
 }
 
-document.getElementById('reportbtn').onclick = async ()=>{
+async function loadGdelt(){
   const r = await fetch('/api/report'); const d = await r.json();
-  document.getElementById('rgen').textContent = 'הופק '+d.generated+' · נתוני 24 השעות האחרונות';
   document.getElementById('rlines').innerHTML = d.lines.map(l=>`<div class="line">${l}</div>`).join('');
   document.getElementById('rhot').innerHTML = '<tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr>'+d.hotspots.map(h=>`<tr><td>${h.place}</td><td class="mono">${h.n}</td><td class="mono">${h.ment}</td><td class="mono" style="color:${h.tone<-3?'var(--red)':'var(--dim)'}">${h.tone}</td></tr>`).join('');
   document.getElementById('rnot').innerHTML = '<tr><th>אירוע</th><th>קטגוריה</th><th>אזכורים</th><th></th></tr>'+d.notable.map(n=>`<tr><td>${n.place||'—'} <span style="color:var(--dim);font-size:12px">${[n.a1,n.a2].filter(Boolean).join(' ←→ ')}</span><div class="mono" style="font-size:11px;color:var(--dim)">${n.t}</div></td><td><span class="chip" style="background:${CATCOL[n.cat]}">${n.catHe}</span></td><td class="mono">${n.ment}</td><td>${n.url?`<a href="${n.url}" target="_blank" rel="noopener" style="color:var(--blue)">מקור ↗</a>`:''}</td></tr>`).join('');
   document.getElementById('rdisc').textContent = d.disclaimer;
-  document.getElementById('modal').style.display='block';
+}
+
+let SR_TH = 'all';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function srItem(c){
+  const cls = c.burst ? 'burst' : c.tier;
+  const ago = c.age==null?'':(c.age<60?c.age+' דק׳':Math.floor(c.age/60)+' שע׳ '+(c.age%60)+' דק׳');
+  return `<div class="it ${cls}"><span class="badge ${c.tier}">${esc(c.tierHe)}</span>${c.burst?'<span class="badge burst">מתפרץ</span>':''}${c.claim?'<span class="badge claim">טענה, לא עובדה</span>':''}<span dir="auto">${esc(c.title)}</span><div class="meta">לפני ${ago} · ${c.n>1?c.n+' דיווחים · ':''}<bdi>${esc(c.srcs.join(", "))}</bdi> · <span title="${esc(c.why)}">למה הדירוג?</span><br>${c.links.map(l=>`<a href="${esc(l.u)}" target="_blank" rel="noopener"><bdi>${esc(l.s)}</bdi> ↗</a>`).join('')}</div></div>`;
+}
+function srSec(name, arr, sub){ return arr.length ? `<div class="sec"><h4>${name} <small>${arr.length}${sub?' · '+sub:''}</small></h4>${arr.map(srItem).join('')}</div>` : ''; }
+async function loadSitrep(){
+  const box = document.getElementById('sitrep');
+  try{
+    const r = await fetch('/api/sitrep?theater='+SR_TH); const d = await r.json();
+    document.getElementById('rtabs').innerHTML = d.theaters.map(t=>`<button class="tab ${t.id===SR_TH?'on':''}" data-t="${t.id}">${esc(t.he)}</button>`).join('');
+    document.querySelectorAll('#rtabs .tab').forEach(b=>b.onclick=()=>{SR_TH=b.dataset.t; loadSitrep();});
+    const stale = d.fastAge!=null && d.fastAge>10 ? ` · <b style="color:var(--orange)">סריקת המבזקים האחרונה לפני ${d.fastAge} דק׳</b>` : '';
+    document.getElementById('rgen').innerHTML = `${esc(d.theaterHe)} · ${d.counts.items72h} דיווחים ב-72 שעות · סריקת מבזקים אחרונה לפני ${d.fastAge==null?'?':d.fastAge} דק׳`+stale;
+    box.innerHTML = srSec('🔥 מתפרץ עכשיו (3 שעות אחרונות)', d.breaking)
+      + srSec('מאומת', d.verified, '24 שעות') + srSec('סביר', d.probable, '24 שעות') + srSec('עדיין לא מאומת', d.initial, 'דיווחי טלגרם בודדים')
+      + `<div class="sec"><h4>מעקב 24-72 שעות <small>נגזר מהנתונים, לא תחזית</small></h4>${d.watch.map(w=>`<div class="it">${esc(w)}</div>`).join('')}</div>`
+      + `<div class="rules">${esc(d.rules)}</div><div class="gaps">${esc(d.gaps)}<br>${esc(d.disclaimer)}</div>`;
+    if(!d.breaking.length && !d.verified.length && !d.probable.length && !d.initial.length) box.innerHTML = '<div class="line">אין כרגע דיווחים רלוונטיים בזירה הזו ב-72 השעות האחרונות במקורות שלנו.</div>'+box.innerHTML;
+  }catch(e){ box.innerHTML = '<div class="line">שגיאה בטעינת הדוח. נסה לרענן.</div>'; }
+}
+document.getElementById('reportbtn').onclick = ()=>{ document.getElementById('modal').style.display='block'; loadSitrep(); loadGdelt(); };
+document.getElementById('rrefresh').onclick = ()=>{ loadSitrep(); loadGdelt(); };
+document.getElementById('rcopy').onclick = async ()=>{
+  const b = document.getElementById('rcopy');
+  try{ const t = await (await fetch('/api/sitrep?format=text&theater='+SR_TH)).text(); await navigator.clipboard.writeText(t); b.textContent='הועתק'; }catch(e){ b.textContent='ההעתקה נכשלה'; }
+  setTimeout(()=>b.textContent='העתק כטקסט',2000);
 };
 document.getElementById('close').onclick = ()=> document.getElementById('modal').style.display='none';
 document.getElementById('sndbtn').textContent = SND_ON ? '🔊' : '🔇';
