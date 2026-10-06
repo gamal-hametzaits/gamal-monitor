@@ -1203,7 +1203,7 @@ const OBS_TYPES = [
 ];
 function obsOf(t) { for (const [re, he] of OBS_TYPES) if (re.test(t)) return he; return ""; }
 const STATEMENT_RE = /minister|spokes|president|chancellor|announce|\bsaid\b|\bsays\b|confirm|statement|meeting|summit|sanction|election|parliament|council|ceasefire|negotiat|talks|\u05E9\u05E8 |\u05D3\u05D5\u05D1\u05E8|\u05D4\u05D5\u05D3\u05D9\u05E2|\u05E0\u05D0\u05DD/i;
-const STATE_TG = new Set(["tasnimnews_en", "presstv", "tass_agency", "almayadeen_en", "ajanews"]);
+const STATE_TG = new Set(["tasnimnews_en", "presstv", "tass_agency", "almayadeen_en", "ajanews", "clashreport"]);
 const isFieldItem = i => !i.mainstream && i.rel !== "state" && !STATE_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase());
 
 function buildSitrep(store, theaterId, llmSt, showArt) {
@@ -1236,13 +1236,13 @@ function buildSitrep(store, theaterId, llmSt, showArt) {
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
   const showArticles = showArt || CFG.showArticles;
-  const stream = clusters.filter(c => c.t >= w24 && (showArticles || c.ptype !== "article") && (c.ptype === "raw" ? (c.crit || c.obs || regionOf(c.title) || gazLocate(c.title)) : false) || (c.t >= w24 && (showArticles || c.ptype !== "article") && c.ptype !== "raw" && (c.crit || c.tier !== "initial" || c.n >= 2 || (CFG.fieldFirst && c.field && regionOf(c.title))))).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
+  const stream = clusters.filter(c => c.t >= w24 && (showArticles || c.ptype !== "article") && (c.ptype === "raw" ? (c.crit || c.obs || regionOf(c.title) || gazLocate(c.title)) : false) || (c.t >= w24 && (showArticles || c.ptype !== "article") && showArticles && c.ptype !== "raw" && (c.crit || c.tier !== "initial" || c.n >= 2 || (CFG.fieldFirst && c.field && regionOf(c.title))))).sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 120).map(c => {
     let lat = c.lat, lon = c.lon;
     if (lat == null) { const g = gazLocate(c.title); if (g) { lat = g.lat; lon = g.lon; } }
     return { ...c, id: hashId(c.title), lat, lon };
   });
   const rank = c => (c.burst ? 0 : 1) * 4 + (c.crit ? 0 : 1) * 2 + (c.tier === "verified" ? 0 : c.tier === "probable" ? 0.5 : 1);
-  const breaking = clusters.filter(c => (showArticles || c.ptype !== "article") && c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
+  const breaking = clusters.filter(c => (showArticles ? c.ptype !== "article" : c.ptype === "raw") && c.age != null && c.age <= CFG.breakingWinMin && (c.crit || c.burst)).sort((a, b) => rank(a) - rank(b) || a.age - b.age).slice(0, 8);
   const bset = new Set(breaking);
   const rest = clusters.filter(c => !bset.has(c) && c.t >= w24 && (c.crit || c.n >= 2 || c.tier !== "initial"));
   const byTier = k => rest.filter(c => c.tier === k).sort((a, b) => (a.t < b.t ? 1 : -1));
