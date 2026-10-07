@@ -1253,7 +1253,7 @@ function buildSitrep(store, theaterId, llmSt, showArt) {
     const displayTier = ptype === "raw" ? { key: "initial", he: "אינדיקציה ראשונית", why: "דיווח תצפית לא מאומת; חזרות בערוצים אינן אישור עצמאי" } : t;
     const displayItems = ptype === "raw" ? [shown, ...rawItems.filter(i => i !== shown)] : c.items;
     const displaySrcs = ptype === "raw" ? Array.from(new Set(rawItems.map(i => i.src))) : srcs;
-    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: decodeEnt(shown.title), t: shownTime, age: ageMin(shownTime), tier: displayTier.key, tierHe: displayTier.he, why: displayTier.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: displayItems.length, nsrc: displaySrcs.length, srcs: displaySrcs.slice(0, 6),
+    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: shown.src, firstT: firstRaw.d, title: decodeEnt(shown.title), t: shownTime, age: ageMin(shownTime), tier: displayTier.key, tierHe: displayTier.he, why: displayTier.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: displayItems.length, nsrc: displaySrcs.length, srcs: displaySrcs.slice(0, 6),
       links: displayItems.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: shown.lat != null ? shown.lat : best.lat, lon: shown.lon != null ? shown.lon : best.lon };
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
