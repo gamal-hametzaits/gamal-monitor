@@ -1211,7 +1211,18 @@ const NOT_FIELD_RE = /contract|awarded|billion|million|\bquestion\b|^report:|\br
 const decodeEnt = t => String(t || "").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, "&");
 const STATEMENT_RE = /minister|spokes|president|chancellor|announce|\bsaid\b|\bsays\b|confirm|statement|meeting|summit|sanction|election|parliament|council|ceasefire|negotiat|talks|\u05E9\u05E8 |\u05D3\u05D5\u05D1\u05E8|\u05D4\u05D5\u05D3\u05D9\u05E2|\u05E0\u05D0\u05DD/i;
 const STATE_TG = new Set(["tasnimnews_en", "presstv", "tass_agency", "almayadeen_en", "ajanews", "clashreport"]);
-const isFieldItem = i => !i.mainstream && i.rel !== "state" && !STATE_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase());
+// Newsroom channels remain available in settings, not in the raw field stream.
+const NEWS_TG = new Set(["idfofficial", "ynetalerts", "amitsegal", "iltvnews", "kyivindependent_official", "ukrpravda_news", "lebanon_24", "thejapantimes"]);
+const isFieldItem = i => !i.mainstream && !["state", "official", "media"].includes(i.rel) && !STATE_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase()) && !NEWS_TG.has(String(i.src || "").replace(/^@/, "").toLowerCase());
+const RETROSPECTIVE_RE = /\b(?:in (?:january|february|march|april|may|june|july|august|september|october|november|december|20\d{2})|years? ago|months? ago|last (?:week|month|year)|anniversary|remembrance|every year|over the past week|in recent days|since 20\d{2})\b|יום השנה|לפני שנה|בשנה שעברה|ذكرى|العام الماضي/iu;
+const ATTRIBUTION_RE = /\b(?:headlines|journalist|colleagues|described|reportedly|claimed|denied|denies|not true|officials?|ministry|mayor|vigil|prototype|developed|sitrep|citing|reports? claiming)\b|\b(?:trump|centcom|reuters|nbc|rfi)\b|למבזק המלא|לכתבה|דובר|ערוצים פלסטינים|עמוד.*העברית|المتحدث|تقرير:|التحالف:|حماس:|صفحة.*العبرية/iu;
+// Require observation language, not just the name of a weapon/place. This
+// does not establish eyewitness identity or verify the underlying claim.
+const OBSERVATION_RE = /\b(?:heard|hearing|saw|seeing|seen|spotted|overhead|detected|flying|circling|firing|burning|rising|approaching|passing|crossing|wait|waiting|evacuating|sheltering|ongoing|sirens? (?:in|sound|active)|explosions? (?:in|near|at)|smoke (?:in|over|from)|planes? (?:over|above))\b|שמעתי|שמענו|ראיתי|ראינו|נצפה|נראו|נשמע|חולף|חולפים|טסים|מעל|עשן עולה|אזעקות ב|سمعنا|دوي|تتصاعد|يحلق|يحلّق|تحلق|تحلّق|يستهدف|تستهدف|لحظة|أعمدة الدخان|رتل.*يمر|صفارات/iu;
+function isRawObservation(i) {
+  const t = decodeEnt(i.title);
+  return isFieldItem(i) && t.length <= 280 && !!obsOf(t) && OBSERVATION_RE.test(t) && !ANALYSIS_RE.test(t) && !STATEMENT_RE.test(t) && !NOT_FIELD_RE.test(t) && !RETROSPECTIVE_RE.test(t) && !ATTRIBUTION_RE.test(t) && !(i.llm && (i.llm.ty === "analysis" || i.llm.ty === "noise"));
+}
 
 function buildSitrep(store, theaterId, llmSt, showArt) {
   llmSt = llmSt || { cache: {} };
@@ -1233,13 +1244,17 @@ function buildSitrep(store, theaterId, llmSt, showArt) {
     const field = c.items.every(i => !i.mainstream);
     // raw = at least one short eyewitness-style post from a non-official field source; long or analytical posts count as articles
     const fieldItems = c.items.filter(isFieldItem);
-    const rawItems = fieldItems.filter(i => i.title.length <= 280 && !ANALYSIS_RE.test(i.title) && !STATEMENT_RE.test(i.title) && !NOT_FIELD_RE.test(i.title) && obsOf(i.title) && !(i.llm && (i.llm.ty === "analysis" || i.llm.ty === "noise")));
+    const rawItems = fieldItems.filter(isRawObservation);
     const allArticle = c.items.every(i => i.kind === "article");
     const ptype = rawItems.length ? "raw" : (allArticle || (!c.items.some(i => CRITICAL_RE.test(i.title)) && c.items.every(i => ANALYSIS_RE.test(i.title) || STATEMENT_RE.test(i.title))) ? "article" : (fieldItems.length && !fieldItems.some(i => i.title.length <= 280) ? "article" : "flash"));
     const firstRaw = (rawItems.length ? rawItems : c.items).slice().sort((a, b) => (a.d < b.d ? -1 : 1))[0];
-    const shown = ptype === "raw" ? firstRaw : best;
-    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: decodeEnt(shown.title), t: newest.d, age: ageMin(newest.d), tier: t.key, tierHe: t.he, why: t.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: c.items.length, nsrc: srcs.length, srcs: srcs.slice(0, 6),
-      links: c.items.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: shown.lat != null ? shown.lat : best.lat, lon: shown.lon != null ? shown.lon : best.lon };
+    const shown = ptype === "raw" ? rawItems.slice().sort((a, b) => a.d < b.d ? 1 : -1)[0] : best;
+    const shownTime = ptype === "raw" ? shown.d : newest.d;
+    const displayTier = ptype === "raw" ? { key: "initial", he: "אינדיקציה ראשונית", why: "דיווח תצפית לא מאומת; חזרות בערוצים אינן אישור עצמאי" } : t;
+    const displayItems = ptype === "raw" ? [shown, ...rawItems.filter(i => i !== shown)] : c.items;
+    const displaySrcs = ptype === "raw" ? Array.from(new Set(rawItems.map(i => i.src))) : srcs;
+    return { field, ptype, region: regionOf(shown.title), obs: obsOf(shown.title), first: firstRaw.src, firstT: firstRaw.d, title: decodeEnt(shown.title), t: shownTime, age: ageMin(shownTime), tier: displayTier.key, tierHe: displayTier.he, why: displayTier.why, burst, crit, claim, llmMerged, llmLabeled: labeled.length > 0, n: displayItems.length, nsrc: displaySrcs.length, srcs: displaySrcs.slice(0, 6),
+      links: displayItems.slice(0, 4).filter(i => i.url).map(i => ({ s: i.src, u: i.url })), lat: shown.lat != null ? shown.lat : best.lat, lon: shown.lon != null ? shown.lon : best.lon };
   });
   const w24 = nowStampMinus(CFG.streamHours * 3600 * 1000);
   const showArticles = showArt || CFG.showArticles;
