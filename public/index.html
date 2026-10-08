@@ -647,17 +647,19 @@ document.addEventListener('click', e=>{
 });
 let MAP_DONE = false;
 
+let DATA_BUSY=false;
 async function load(){
-  if (document.hidden) return;
+  if (document.hidden || DATA_BUSY) return;
+  DATA_BUSY=true;
   let d;
   try{
-    const r = await fetch('/api/data'); if (!r.ok) throw new Error(r.status); d = await r.json(); FAILS = 0;
+    const r = await fetch('/api/data', {signal:AbortSignal.timeout(20000)}); if (!r.ok) throw new Error(r.status); d = await r.json(); FAILS = 0;
     document.getElementById('neterr').style.display='none';
   }catch(e){
     FAILS++; const n = document.getElementById('neterr');
-    n.textContent = 'אין חיבור לשרת, מציג נתונים אחרונים. מנסה שוב...'; n.style.display = DATA ? 'block' : 'none';
+    n.textContent = 'אין חיבור לשרת, מציג נתונים אחרונים. מנסה שוב...'; n.style.display = 'block';
     return;
-  }
+  }finally{ DATA_BUSY=false; }
   const sig = d.updated+'|'+(d.fast&&d.fast.last)+'|'+((d.breaking||[])[0]||{}).id+'|'+((d.feed||[])[0]||{}).id+'|'+(d.feed||[]).length+'|'+d.events.length+'|'+HIDE_UNV;
   DATA = d;
   document.getElementById('updated').textContent = 'עודכן '+fmtT(DATA.updated);
@@ -787,16 +789,19 @@ function useCached(){
     return true;
   }catch(e){ return false; }
 }
+let STREAM_BUSY=false;
 async function loadStream(){
+  if(document.hidden || STREAM_BUSY) return;
+  STREAM_BUSY=true;
   try{
-    const r = await fetch('/api/sitrep?theater=all'); if(!r.ok) throw 0; const d = await r.json();
+    const r = await fetch('/api/sitrep?theater=all', {signal:AbortSignal.timeout(20000)}); if(!r.ok) throw 0; const d = await r.json();
     const first = !STREAM || STREAM.__cached; const prev = new Set((STREAM?STREAM.stream:[]).map(c=>c.id)); STREAM = d;
     window.__fresh = first ? new Set() : new Set(d.stream.filter(c=>!prev.has(c.id)).map(c=>c.id));
     try{ localStorage.setItem('sr_cache', JSON.stringify({at:Date.now(), d:{stream:d.stream.slice(0,60), llm:d.llm}})); }catch(e){}
     renderStream();
   }catch(e){
     if(!STREAM || !STREAM.__cached){ if(!useCached() && !STREAM) document.getElementById('stream').innerHTML='<div style="padding:24px;color:var(--dim)">אין חיבור ואין נתונים שמורים. מנסה שוב...</div>'; }
-  }
+  }finally{ STREAM_BUSY=false; }
 }
 document.getElementById('tiers').addEventListener('click', e=>{ const b=e.target.closest('[data-t]'); if(!b) return; TIER=b.dataset.t; document.querySelectorAll('#tiers [data-t]').forEach(x=>x.classList.toggle('on',x===b)); renderStream(); });
 document.getElementById('stream').addEventListener('click', e=>{
@@ -810,7 +815,7 @@ savePins(); useCached(); loadStream(); let POLL=45; fetch('/api/settings').then(
 let lastPoll=Date.now(); setInterval(()=>{ if(document.hidden||Date.now()-lastPoll<POLL*1000-500) return; lastPoll=Date.now(); loadStream(); load(); }, 5000);
 load();
 setInterval(()=>{ if(!document.hidden && DATA) updateBeat(); }, 15000);
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) load(); });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){lastPoll=Date.now();load();loadStream();} });
 </script>
 </body>
 </html>
