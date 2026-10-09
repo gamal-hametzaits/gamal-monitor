@@ -692,11 +692,14 @@ function markNew(){
   document.querySelectorAll('[data-id]').forEach(el=>{ if (f.has(el.dataset.id)) el.classList.add('new'); });
 }
 
+function safeReportUrl(value){
+  try{const u=new URL(value);return /^https?:$/.test(u.protocol)?esc(u.href):'#';}catch(e){return '#';}
+}
 async function loadGdelt(){
   const r = await fetch('/api/report'); const d = await r.json();
-  document.getElementById('rlines').innerHTML = d.lines.map(l=>`<div class="line">${l}</div>`).join('');
-  document.getElementById('rhot').innerHTML = '<tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr>'+d.hotspots.map(h=>`<tr><td>${h.place}</td><td class="mono">${h.n}</td><td class="mono">${h.ment}</td><td class="mono" style="color:${h.tone<-3?'var(--red)':'var(--dim)'}">${h.tone}</td></tr>`).join('');
-  document.getElementById('rnot').innerHTML = '<tr><th>אירוע</th><th>קטגוריה</th><th>אזכורים</th><th></th></tr>'+d.notable.map(n=>`<tr><td>${n.place||'—'} <span style="color:var(--dim);font-size:12px">${[n.a1,n.a2].filter(Boolean).join(' ←→ ')}</span><div class="mono" style="font-size:11px;color:var(--dim)">${n.t}</div></td><td><span class="chip" style="background:${CATCOL[n.cat]}">${n.catHe}</span></td><td class="mono">${n.ment}</td><td>${n.url?`<a href="${n.url}" target="_blank" rel="noopener" style="color:var(--blue)">מקור ↗</a>`:''}</td></tr>`).join('');
+  document.getElementById('rlines').innerHTML = d.lines.map(l=>`<div class="line">${esc(l)}</div>`).join('');
+  document.getElementById('rhot').innerHTML = '<tr><th>מיקום</th><th>אירועים</th><th>אזכורים</th><th>טון ממוצע</th></tr>'+d.hotspots.map(h=>`<tr><td>${esc(h.place)}</td><td class="mono">${h.n}</td><td class="mono">${h.ment}</td><td class="mono" style="color:${h.tone<-3?'var(--red)':'var(--dim)'}">${h.tone}</td></tr>`).join('');
+  document.getElementById('rnot').innerHTML = '<tr><th>אירוע</th><th>קטגוריה</th><th>אזכורים</th><th></th></tr>'+d.notable.map(n=>`<tr><td>${esc(n.place||'—')} <span style="color:var(--dim);font-size:12px">${esc([n.a1,n.a2].filter(Boolean).join(' ←→ '))}</span><div class="mono" style="font-size:11px;color:var(--dim)">${esc(n.t)}</div></td><td><span class="chip" style="background:${CATCOL[n.cat]}">${esc(n.catHe)}</span></td><td class="mono">${n.ment}</td><td>${n.url?`<a href="${safeReportUrl(n.url)}" target="_blank" rel="noopener" style="color:var(--blue)">מקור ↗</a>`:''}</td></tr>`).join('');
   document.getElementById('rdisc').textContent = d.disclaimer;
 }
 
